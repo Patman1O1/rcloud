@@ -28,7 +28,6 @@ set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # Project Settings
-option(BUILD_SHARED_LIBS "Build the project as a shared library" OFF)
 option(BUILD_TESTS "Build the project's test suite" )
 
 # Set default build type if not specified
