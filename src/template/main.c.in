@@ -1,7 +1,0 @@
-#include <@PROJECT_NAME_KEBAB_CASE@/@PROJECT_PRIMARY_TARGET@.h>
-
-int main(int argc, char** argv) {
-
-    return 0;
-}
-
