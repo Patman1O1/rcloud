@@ -1,0 +1,55 @@
+name: "Create Project"
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_type:
+        description: "Project type"
+        required: true
+        type: choice
+        options:
+          - "Executable"
+          - "Static Library"
+          - "Shared Library"
+          - "Interface Library"
+
+permissions:
+  contents: write
+
+jobs:
+  create_project:
+    # Make sure this is not the template repository
+    if: github.repository != 'Patman1O1/c-project-template'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure Bot With GitHub
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+      - name: Run cmake_project.cmake
+        run: |
+          cmake \
+          -D PROJECT_NAME="${{ github.event.repository.name }}" \
+          -D PROJECT_AUTHOR="${{ github.actor }}" \
+          -D PROJECT_DESCRIPTION="${{ github.event.repository.description }}" \
+          -D PROJECT_TYPE="${{ github.event.inputs.project_type }}" \
+          -P "$GITHUB_WORKSPACE/.github/cmake/cmake_project.cmake"
+
+      - name: Update README.md
+        run: |
+          echo -e "# ${{ github.event.repository.name }}\n${{ github.event.repository.description }}" > "$GITHUB_WORKSPACE/README.md"
+
+      - name: Remove .github directory
+        run: |
+          rm -rf "$GITHUB_WORKSPACE/.github"
+
+      - name: Commit changes
+        run: |
+          git add .
+          git commit -m "Create ${GITHUB_REPOSITORY}" || echo "No changes to commit"
+          git push

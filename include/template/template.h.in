@@ -1,0 +1,13 @@
+#ifndef @PROJECT_NAME_SCREAMING_CASE@_H
+#define @PROJECT_NAME_SCREAMING_CASE@_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif // #ifdef __cplusplus
+
+#ifdef __cplusplus
+}
+#endif // #ifdef __cplusplus
+
+#endif // #ifndef @PROJECT_NAME_SCREAMING_CASE@_H
+
