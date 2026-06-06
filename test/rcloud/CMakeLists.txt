@@ -1,34 +1,35 @@
 #-----------------------------------------------------------------------------------------------------------------------
-# Project Test Target
+# Target Name: rcloud_test
+# Target Type: Executable
+# Target Dependencies: rcloud_objects
 #-----------------------------------------------------------------------------------------------------------------------
 # Define the test target
 add_executable(${PROJECT_PRIMARY_TARGET}_test)
 
 # Set properties
-set_target_properties(${PROJECT_PRIMARY_TARGET}_test PROPERTIES
-        OUTPUT_NAME ${PROJECT_OUTPUT_NAME}-test
+set_target_properties(rcloud_test PROPERTIES
+        OUTPUT_NAME rcloud-test
 )
 
 # Include directories
-target_include_directories(${PROJECT_PRIMARY_TARGET}_test
+target_include_directories(rcloud_test
         PRIVATE
-            "${CMAKE_SOURCE_DIR}/include/${PROJECT_PRIMARY_TARGET}"
+            "${CMAKE_SOURCE_DIR}/include/rcloud"
         PUBLIC
             "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>"
             "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )
 
 # Set sources
-target_sources(${PROJECT_PRIMARY_TARGET}_test
-    PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_PRIMARY_TARGET}_test.cpp"
+target_sources(rcloud_test
+        PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/rcloud_test.cpp"
 )
 
-target_link_libraries(${PROJECT_PRIMARY_TARGET}_test
+target_link_libraries(rcloud_test
         PRIVATE
-             $<$<TARGET_EXISTS:${PROJECT_PRIMARY_TARGET}_objects>:${PROJECT_PRIMARY_TARGET}_objects>
+            $<$<TARGET_EXISTS:rcloud_objects>:rcloud_objects>
             GTest::gtest_main
             GTest::gmock_main
 )
-gtest_discover_tests(${PROJECT_PRIMARY_TARGET}_test)
-
+gtest_discover_tests(rcloud_test)
