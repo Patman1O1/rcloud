@@ -17,7 +17,11 @@ target_include_directories(rcloud_objects
 # Set sources
 target_sources(rcloud_objects
         PRIVATE
+            "${CMAKE_SOURCE_DIR}/src/rcloud/util.c"
+            "${CMAKE_SOURCE_DIR}/src/rcloud/backing_file.c"
+            "${CMAKE_SOURCE_DIR}/src/rcloud/loop.c"
             "${CMAKE_SOURCE_DIR}/src/rcloud/filesystem.c"
+            "${CMAKE_SOURCE_DIR}/src/rcloud/fanotify.c"
 )
 
 #-----------------------------------------------------------------------------------------------------------------------
@@ -45,7 +49,10 @@ target_sources(rcloud
 )
 
 # Link the rcloud object library with the rcloud executable
-target_link_libraries(rcloud PRIVATE rcloud_objects)
+target_link_libraries(rcloud
+        PRIVATE
+            rcloud_objects
+)
 
 # Define installation rules
 if(NOT CMAKE_SKIP_INSTALL_RULES)
