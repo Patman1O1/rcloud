@@ -57,6 +57,7 @@ target_include_directories(backing_file_test
 # Set sources
 target_sources(backing_file_test
         PRIVATE
+            "${CMAKE_SOURCE_DIR}/src/rcloud/util.c"
             "${CMAKE_SOURCE_DIR}/src/rcloud/backing_file.c"
             "${CMAKE_CURRENT_SOURCE_DIR}/backing_file_test.cpp"
 )
