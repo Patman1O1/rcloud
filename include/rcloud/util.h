@@ -14,6 +14,7 @@
 
 // ISO Includes
 #include <stdio.h>
+#include <errno.h>
 
 // POSIX Includes
 #include <sys/types.h>
