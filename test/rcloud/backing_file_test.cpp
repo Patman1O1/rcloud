@@ -38,6 +38,33 @@ namespace backing_file_testing {
     } // unnamed namespace
 
     // ── Function Tests (backing_file_open) ───────────────────────────────────────────────────────────────────────────
+    TEST(backing_file_open, backing_file_nullptr) {
+        EXPECT_EQ(-1, ::backing_file_open(nullptr, 0, 0000));
+        EXPECT_EQ(ENOENT, errno);
+    }
+
+    TEST(backing_file_open, valid_file) {
+        constexpr std::uint32_t flags = O_RDONLY | O_CLOEXEC;
+        struct ::backing_file file;
+
+        // Ensure the file exists
+        std::filesystem::remove(TEST_FILE_PATH);
+        const int fd = ::open(TEST_FILE_PATH, flags | O_CREAT, 0644);
+        EXPECT_NE(-1, fd);
+        ::close(fd);
+
+        // Initialize the struct
+        std::strncpy(file.bk_path, TEST_FILE_PATH, sizeof(TEST_FILE_PATH) - 1);
+        file.bk_path[sizeof(TEST_FILE_PATH)] = '\0';
+        file.bk_size = TEST_FILE_SIZE;
+
+        EXPECT_NE(-1, ::backing_file_open(&file, flags, 0644));
+        EXPECT_EQ(ENOENT, errno);
+
+        // Close and remove the file
+        ::close(file.bk_fd);
+        std::filesystem::remove(TEST_FILE_PATH);
+    }
 
     // ── Function Tests (backing_file_close) ──────────────────────────────────────────────────────────────────────────
 
