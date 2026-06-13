@@ -8,6 +8,12 @@
 // ISO Includes
 #include <stdint.h>
 #include <stdbool.h>
+#include <errno.h>
+
+// POSIX Includes
+#include <unistd.h>
+#include <sys/types.h>
+#include <fcntl.h>
 
 // GNU Includes
 #include <linux/loop.h>
