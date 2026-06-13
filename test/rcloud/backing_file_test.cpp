@@ -113,9 +113,14 @@ namespace backing_file_testing {
 
         // Ensure the file actually exists
         EXPECT_EQ(EXIT_SUCCESS, ::backing_file_create(&file, TEST_FILE_PATH, TEST_FILE_SIZE));
+        EXPECT_TRUE(std::filesystem::exists(TEST_FILE_PATH));
 
+        file.bk_fd = ::backing_file_open(&file, O_WRONLY, 0644);
+
+        EXPECT_NE(-1, file.bk_fd);
         EXPECT_EQ(EXIT_SUCCESS, ::backing_file_destroy(&file));
         EXPECT_FALSE(std::filesystem::exists(TEST_FILE_PATH));
+        EXPECT_EQ(-1, file.bk_fd);
     }
 
 } // namespace backing_file_testing
