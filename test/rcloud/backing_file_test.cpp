@@ -4,10 +4,13 @@
 
 // ISO C++ Includes
 #include <filesystem>
+#include <fstream>
+#include <system_error>
 
 // ISO C Includes
 
 // POSIX Includes
+#include <unistd.h>
 
 // GNU Includes
 
@@ -19,6 +22,10 @@
 #include <rcloud/backing_file.h>
 
 namespace backing_file_testing {
+    namespace {
+        constexpr char TEST_FILE_PATH[] = "/tmp/test.img";
+        constexpr ::off_t TEST_FILE_SIZE =  1074000000L; // 1 Gibibyte (GiB)
+    } // unnamed namespace
 
     TEST(backing_file_create, backing_file_nullptr) {
         EXPECT_EQ(-1, ::backing_file_create(nullptr, "no/such/path", 0));
@@ -50,6 +57,23 @@ namespace backing_file_testing {
         EXPECT_EQ(ENAMETOOLONG, errno);
     }
 
-    
+    TEST(backing_file_create, file_already_exists) {
+        struct ::backing_file file;
+
+        // Ensure the file doesn't already exist
+        std::filesystem::remove(TEST_FILE_PATH);
+
+        // Create the file
+        if (std::fstream backing_file(TEST_FILE_PATH, std::ios::out);backing_file.is_open()) {
+            backing_file.close();
+        }
+
+        EXPECT_EQ(-1, ::backing_file_create(&file, TEST_FILE_PATH, TEST_FILE_SIZE));
+        EXPECT_EQ(EEXIST, errno);
+
+        // Remove the file
+        std::filesystem::remove(TEST_FILE_PATH);
+    }
+
 } // namespace backing_file_testing
 
