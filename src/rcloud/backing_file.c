@@ -164,6 +164,7 @@ int backing_file_init(struct backing_file* file_p, const char* path_p) {
 
 void backing_file_destroy(struct backing_file* file_p) {
     if (file_p == nullptr) {
+        errno = ENOENT;
         return;
     }
 
