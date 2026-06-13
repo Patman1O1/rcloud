@@ -21,7 +21,6 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <sys/sysmacros.h>
 
 // GNU Includes
 
@@ -37,70 +36,6 @@ namespace backing_file_testing {
         constexpr char TEST_FILE_PATH[] = "/tmp/test.img";
         constexpr ::off_t TEST_FILE_SIZE =  1074000000L; // 1 Gibibyte (GiB)
 
-        inline std::error_code get_error() noexcept { return std::error_code{errno, std::system_category()}; }
-
-        std::expected<void, std::error_code> create_regular_file(const char* path_p) noexcept {
-            const int fd = ::open(path_p, O_WRONLY | O_CREAT | O_EXCL, 0644);
-            if (fd == -1) [[unlikely]] {
-                return std::unexpected{get_error()};
-            }
-            ::close(fd);
-            return {};
-        }
-
-        std::expected<void, std::error_code> create_directory(const char* path_p) noexcept {
-            if (::mkdir(path_p, 0755) == -1) [[unlikely]] {
-                return std::unexpected{get_error()};
-            }
-            return {};
-        }
-
-        std::expected<void, std::error_code> create_symlink(const char* from_path_p, const char* to_path_p) noexcept {
-            if (::symlink(from_path_p, to_path_p) == -1) [[unlikely]] {
-                return std::unexpected(get_error());
-            }
-            return {};
-        }
-
-        std::expected<void, std::error_code> create_pipe(const char* path_p) noexcept {
-            if (::mkfifo(path_p, 0666) == -1) [[unlikely]] {
-                return std::unexpected{get_error()};
-            }
-            return {};
-        }
-
-        std::expected<void, std::error_code> create_socket(const char* path_p) noexcept {
-            const int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
-            if (fd == -1) [[unlikely]] {
-                return std::unexpected{get_error()};
-            }
-
-            const std::size_t path_len = std::strlen(path_p);
-            struct ::sockaddr_un addr;
-            addr.sun_family = AF_UNIX;
-            std::strncpy(addr.sun_path, path_p, path_len);
-            addr.sun_path[path_len] = '\0';
-
-            // Binding assigns the socket to the file system path
-            ::bind(fd, reinterpret_cast<struct ::sockaddr*>(&addr), sizeof(struct ::sockaddr));
-            ::close(fd);
-
-            return {};
-        }
-
-        std::expected<void, std::error_code> create_char_device(const char* path_p) noexcept {
-            if (::mknod(path_p, S_IFCHR | 0666, makedev(1, 3)) == -1) [[unlikely]] {
-                return std::unexpected{get_error()};
-            }
-            return {};
-        }
-
-        std::expected<void, std::error_code> create_block_device(const char* path_p) noexcept {
-            if (::mknod(path_p, S_IFBLK | 0660, makedev(1, 3)) == -1) [[unlikely]] {
-                return std::unexpected{get_error()};
-            }
-            return {};
-        }
     } // unnamed namespace
 
     // ── Function Tests (backing_file_create) ─────────────────────────────────────────────────────────────────────────
@@ -200,12 +135,10 @@ namespace backing_file_testing {
         EXPECT_EQ(-1, file.bk_fd);
     }
 
-    // ── Function Tests (backing_file_get_state) ──────────────────────────────────────────────────────────────────────
-    TEST(backing_file_get_state, backing_file_nullptr) {
-        EXPECT_EQ(DOES_NOT_EXIST, ::backing_file_get_state(nullptr));
-    }
+    // ── Function Tests (backing_file_exists) ─────────────────────────────────────────────────────────────────────────
+    TEST(backing_file_exists, backing_file_nullptr) { EXPECT_FALSE(::backing_file_exists(nullptr)); }
 
-    TEST(backing_file_get_state, backing_file_does_not_exist) {
+    TEST(backing_file_exists, does_not_exist) {
         constexpr struct ::backing_file file = {
             .bk_path = "/no/such/path/to/file.img",
             .bk_size = TEST_FILE_SIZE,
@@ -215,55 +148,22 @@ namespace backing_file_testing {
         // Ensure the path does not exist
         std::filesystem::remove_all(file.bk_path);
 
-        EXPECT_EQ(DOES_NOT_EXIST, ::backing_file_get_state(file.bk_path));
+        EXPECT_FALSE(::backing_file_exists(file.bk_path));
     }
 
-    TEST(backing_file_get_state, exists_but_is_directory) {
-        // Ensure the directory doesn't already exist
-        std::filesystem::remove_all("/tmp/test");
+    TEST(backing_file_exists, exists) {
+        // Ensure the file doesn't already exist
+        std::filesystem::remove_all(TEST_FILE_PATH);
 
-        create_directory("/tmp/test");
+        std::fstream file{TEST_FILE_PATH, std::ios::out};
+        EXPECT_TRUE(file.is_open());
+        std::print(file, "");
+        file.close();
 
-        EXPECT_EQ(NOT_REGULAR, ::backing_file_get_state("/tmp/test"));
+        EXPECT_TRUE(::backing_file_exists(TEST_FILE_PATH));
 
-        // Remove the directory
-        std::filesystem::remove_all("/tmp/test");
-    }
-
-    TEST(backing_file_get_state, exists_but_is_symlink) {
-        // Ensure the symlink doesn't already exist
-        std::filesystem::remove_all("/tmp/test");
-
-        create_symlink("/tmp", "/tmp/test");
-
-        EXPECT_EQ(NOT_REGULAR, ::backing_file_get_state("/tmp/test"));
-
-        // Remove the symlink
-        std::filesystem::remove_all("/tmp/test");
-    }
-
-    TEST(backing_file_get_state, exists_but_is_pipe) {
-        // Ensure the pipe doesn't already exist
-        std::filesystem::remove_all("/tmp/test");
-
-        create_pipe("/tmp/test");
-
-        EXPECT_EQ(NOT_REGULAR, ::backing_file_get_state("/tmp/test"));
-
-        // Remove the symlink
-        std::filesystem::remove_all("/tmp/test");
-    }
-
-    TEST(backing_file_get_state, exists_but_is_socket) {
-        // Ensure the socket file doesn't already exist
-        std::filesystem::remove_all("/tmp/test");
-
-        create_socket("/tmp/test");
-
-        EXPECT_EQ(NOT_REGULAR, ::backing_file_get_state("/tmp/test"));
-
-        // Remove the symlink
-        std::filesystem::remove_all("/tmp/test");
+        // Remove the file
+        std::filesystem::remove(TEST_FILE_PATH);
     }
 
 } // namespace backing_file_testing
