@@ -16,7 +16,6 @@
 
 // POSIX Includes
 #include <sys/stat.h>
-#include <sys/statvfs.h>
 #include <ftw.h>
 
 // GNU Includes
@@ -105,12 +104,7 @@ int backing_file_create(struct backing_file* file_p, const char* path_p, const o
     return EXIT_SUCCESS;
 }
 
-bool backing_file_exists(const char* path_p) {
-    struct stat st;
-    return path_p != nullptr && stat(path_p, &st) == EXIT_SUCCESS;
-}
-
-int backing_file_destroy(struct backing_file* file_p) {
+int backing_file_remove(struct backing_file* file_p) {
     if (file_p == nullptr || !backing_file_exists(file_p->bk_path)) {
         errno = ENOENT;
         return -1;
@@ -122,7 +116,63 @@ int backing_file_destroy(struct backing_file* file_p) {
         file_p->bk_fd = -1;
     }
 
-    return nftw(file_p->bk_path, remove_cb, 64, FTW_DEPTH | FTW_PHYS) == -1 ? -1 : EXIT_SUCCESS;
+    // Remove the file
+    if (nftw(file_p->bk_path, remove_cb, 64, FTW_DEPTH | FTW_PHYS) == -1) {
+        return -1;
+    }
+
+    // Zero out all the bytes in the path string
+    memset(file_p->bk_path, 0x00, sizeof(file_p->bk_path));
+
+    // Set the file size to -1 (since it no longer exists)
+    file_p->bk_size = -1;
+
+    return EXIT_SUCCESS;
+}
+
+int backing_file_init(struct backing_file* file_p, const char* path_p) {
+    // Ensure all pointers are non-null
+    if (file_p == nullptr || path_p == nullptr) {
+        errno = EFAULT;
+        return -1;
+    }
+
+    // Ensure the backing file actually exists
+    struct stat st;
+    if (stat(path_p, &st) == -1) {
+        errno = ENOENT;
+        return -1;
+    }
+    if (!S_ISREG(st.st_mode)) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    // Set the file path
+    snprintf(file_p->bk_path, sizeof(file_p->bk_path), "%s", path_p);
+
+    // Set the file descriptor
+    file_p->bk_fd = open(file_p->bk_path, O_RDWR | O_DIRECT | O_CLOEXEC, 0644);
+    if (file_p->bk_fd == -1) {
+        return -1;
+    }
+
+    // Set the file size
+    file_p->bk_size = st.st_size;
+
+    return EXIT_SUCCESS;
+}
+
+void backing_file_destroy(struct backing_file* file_p) {
+    if (file_p == nullptr) {
+        return;
+    }
+
+    // Close the file if it is still open
+    if (file_p->bk_fd >= 0) {
+        close(file_p->bk_fd);
+        file_p->bk_fd = -1;
+    }
 }
 
 #ifdef __cplusplus
