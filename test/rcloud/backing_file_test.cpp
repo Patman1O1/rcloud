@@ -11,7 +11,6 @@
 #include <string>
 #include <filesystem>
 #include <fstream>
-#include <expected>
 
 // POSIX Includes
 #include <unistd.h>
@@ -186,6 +185,20 @@ namespace backing_file_testing {
         EXPECT_FALSE(::backing_file_is_reg(TEST_FILE_PATH));
 
         // Remove the socket
+        std::filesystem::remove(TEST_FILE_PATH);
+    }
+
+    TEST(backing_file_is_reg, is_regular_file) {
+        // Ensure the file doesn't already exist
+        std::filesystem::remove(TEST_FILE_PATH);
+
+        const int fd = ::open(TEST_FILE_PATH, O_RDONLY | O_CREAT, 0644);
+        EXPECT_NE(-1, fd);
+
+        EXPECT_TRUE(::backing_file_is_reg(TEST_FILE_PATH));
+
+        // Remove the file
+        ::close(fd);
         std::filesystem::remove(TEST_FILE_PATH);
     }
 
