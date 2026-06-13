@@ -28,6 +28,7 @@ namespace backing_file_testing {
         constexpr ::off_t TEST_FILE_SIZE =  1074000000L; // 1 Gibibyte (GiB)
     } // unnamed namespace
 
+    // ── Function Tests (backing_file_create) ─────────────────────────────────────────────────────────────────────────
     TEST(backing_file_create, backing_file_nullptr) {
         EXPECT_EQ(-1, ::backing_file_create(nullptr, "no/such/path", 0));
         EXPECT_EQ(EFAULT, errno);
@@ -89,6 +90,7 @@ namespace backing_file_testing {
         std::filesystem::remove(TEST_FILE_PATH);
     }
 
+    // ── Function Tests (backing_file_destroy) ────────────────────────────────────────────────────────────────────────
     TEST(backing_file_destroy, backing_file_nullptr) {
         EXPECT_EQ(-1, ::backing_file_destroy(nullptr));
         EXPECT_EQ(ENOENT, errno);
@@ -123,6 +125,7 @@ namespace backing_file_testing {
         EXPECT_EQ(-1, file.bk_fd);
     }
 
+    // ── Function Tests (backing_file_get_state) ──────────────────────────────────────────────────────────────────────
     TEST(backing_file_get_state, backing_file_nullptr) {
         EXPECT_EQ(DOES_NOT_EXIST, ::backing_file_get_state(nullptr));
     }
