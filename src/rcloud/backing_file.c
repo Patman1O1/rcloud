@@ -154,11 +154,7 @@ int backing_file_destroy(struct backing_file* file_p) {
         file_p->bk_fd = -1;
     }
 
-    if (nftw(file_p->bk_path, remove_cb, 64, FTW_DEPTH | FTW_PHYS) == -1) {
-        return -1;
-    }
-
-    return EXIT_SUCCESS;
+    return nftw(file_p->bk_path, remove_cb, 64, FTW_DEPTH | FTW_PHYS) == -1 ? -1 : EXIT_SUCCESS;
 }
 
 #ifdef __cplusplus
