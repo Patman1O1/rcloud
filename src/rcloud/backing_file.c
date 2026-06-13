@@ -2,15 +2,19 @@
 #define _GNU_SOURCE
 #endif // #ifndef _GNU_SOURCE
 
+#ifdef _XOPEN_SOURCE
+#define _XOPEN_SOURCE_ORIGINAL _XOPEN_SOURCE
+#undef _XOPEN_SOURCE
+#endif // #ifdef _XOPEN_SOURCE
+
+#define _XOPEN_SOURCE 500
+
 // ISO Includes
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
 
 // POSIX Includes
-#include <unistd.h>
-#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/statfs.h>
 #include <ftw.h>
@@ -25,13 +29,13 @@
 extern "C" {
 #endif // #ifdef __cplusplus
 
+static inline int remove_cb(const char* path_p, const struct stat*, int, struct FTW*) { return remove(path_p); }
+
 static inline bool backing_file_exists(const char* path_p, struct stat* st_p) {
     return stat(path_p, st_p) == EXIT_SUCCESS;
 }
 
-static inline bool backing_file_is_regular(const struct stat* st_p) {
-    return S_ISREG(st_p->st_mode) == EXIT_SUCCESS;
-}
+static inline bool backing_file_is_regular(const struct stat* st_p) { return S_ISREG(st_p->st_mode) == EXIT_SUCCESS; }
 
 static inline bool backing_file_is_valid_size(const struct stat* st_p, const off_t size) {
     return st_p->st_size > size;
@@ -68,6 +72,11 @@ int backing_file_create(struct backing_file* file_p, const char* path_p, const o
     // Ensure all pointers are non-null
     if (file_p == nullptr || path_p == nullptr) {
         errno = EFAULT;
+        return -1;
+    }
+
+    if (size <= 0) {
+        errno = EINVAL;
         return -1;
     }
 
@@ -127,14 +136,38 @@ int backing_file_create(struct backing_file* file_p, const char* path_p, const o
     // Copy the entire path into the backing file struct's f_path field
     memcpy(file_p->bk_path, path_p, path_len + 1);
 
-    // Set the f_size field
+    // Set the size field
     file_p->bk_size = size;
 
     return EXIT_SUCCESS;
 }
 
+int backing_file_destroy(struct backing_file* file_p) {
+    if (file_p == nullptr) {
+        errno = ENOENT;
+        return -1;
+    }
+
+    // Close the file if it is open
+    if (file_p->bk_fd >= 0) {
+        close(file_p->bk_fd);
+        file_p->bk_fd = -1;
+    }
+
+    if (nftw(file_p->bk_path, remove_cb, 64, FTW_DEPTH | FTW_PHYS) == -1) {
+        return -1;
+    }
+
+    return EXIT_SUCCESS;
+}
 
 #ifdef __cplusplus
 }
 #endif // #ifdef __cplusplus
+
+#ifdef _XOPEN_SOURCE_ORIGINAL
+#undef _XOPEN_SOURCE
+#define _XOPEN_SOURCE _XOPEN_SOURCE_ORIGINAL
+#undef _XOPEN_SOURCE_ORIGINAL
+#endif // #ifdef _XOPEN_SOURCE_ORIGINAL
 
