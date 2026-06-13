@@ -127,7 +127,18 @@ namespace backing_file_testing {
         EXPECT_EQ(DOES_NOT_EXIST, ::backing_file_get_state(nullptr));
     }
 
+    TEST(backing_file_get_state, backing_file_does_not_exist) {
+        constexpr struct ::backing_file file = {
+            .bk_path = "/no/such/path/to/file.img",
+            .bk_size = TEST_FILE_SIZE,
+            .bk_fd = -1
+        };
 
+        // Ensure the path does not exist
+        std::filesystem::remove_all(file.bk_path);
+
+        EXPECT_EQ(DOES_NOT_EXIST, ::backing_file_get_state(file.bk_path));
+    }
 
 } // namespace backing_file_testing
 
