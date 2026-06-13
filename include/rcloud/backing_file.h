@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 // GNU Includes
 #include <linux/loop.h>
@@ -50,11 +51,28 @@ static inline int backing_file_close(struct backing_file* file_p) {
     return ret;
 }
 
+static inline bool backing_file_exists(const char* path_p) {
+    struct stat st;
+    return path_p != nullptr && stat(path_p, &st) == EXIT_SUCCESS;
+}
+
+static inline bool backing_file_is_reg(const char* path_p) {
+    struct stat st;
+    if (path_p == nullptr || stat(path_p, &st) == -1) {
+        errno = ENOENT;
+        return false;
+    }
+
+    return S_ISREG(st.st_mode);
+}
+
 extern int backing_file_create(struct backing_file* file_p, const char* path_p, off_t size);
 
-extern bool backing_file_exists(const char* path_p);
+extern int backing_file_remove(struct backing_file* file_p);
 
-extern int backing_file_destroy(struct backing_file* file_p);
+extern int backing_file_init(struct backing_file* file_p, const char* path_p);
+
+extern void backing_file_destroy(struct backing_file* file_p);
 
 #ifdef __cplusplus
 }
