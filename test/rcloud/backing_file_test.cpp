@@ -88,5 +88,10 @@ namespace backing_file_testing {
         std::filesystem::remove(TEST_FILE_PATH);
     }
 
+    TEST(backing_file_destroy, backing_file_nullptr) {
+        EXPECT_EQ(-1, ::backing_file_destroy(nullptr));
+        EXPECT_EQ(ENOENT, errno);
+    }
+
 } // namespace backing_file_testing
 
