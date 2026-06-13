@@ -141,6 +141,17 @@ namespace backing_file_testing {
         std::filesystem::remove_all(TEST_FILE_PATH);
     }
 
+    TEST(backing_file_is_reg, is_symlink) {
+        // Ensure the symlink doesn't already exist
+        std::filesystem::remove(TEST_FILE_PATH);
+
+        EXPECT_NE(-1, ::symlink(std::getenv("HOME"), TEST_FILE_PATH));
+        EXPECT_FALSE(::backing_file_is_reg(TEST_FILE_PATH));
+
+        // Remove the symlink
+        std::filesystem::remove(TEST_FILE_PATH);
+    }
+
     // ── Function Tests (backing_file_create) ─────────────────────────────────────────────────────────────────────────
     TEST(backing_file_create, backing_file_nullptr) {
         EXPECT_EQ(-1, ::backing_file_create(nullptr, "no/such/path", 0));
