@@ -7,6 +7,7 @@
 #include <fstream>
 
 // ISO C Includes
+#include <cstring>
 
 // POSIX Includes
 #include <unistd.h>
@@ -91,6 +92,30 @@ namespace backing_file_testing {
     TEST(backing_file_destroy, backing_file_nullptr) {
         EXPECT_EQ(-1, ::backing_file_destroy(nullptr));
         EXPECT_EQ(ENOENT, errno);
+    }
+
+    TEST(backing_file_destroy, file_does_not_exist) {
+        struct ::backing_file file = {
+            .bk_path = "/no/such/path/to/file.img",
+            .bk_size = TEST_FILE_SIZE,
+            .bk_fd = -1,
+        };
+
+        // Ensure the path actually does not exist
+        std::filesystem::remove_all(file.bk_path);
+
+        EXPECT_EQ(-1, ::backing_file_destroy(&file));
+        EXPECT_EQ(ENOENT, errno);
+    }
+
+    TEST(backing_file_destroy, file_exists) {
+        struct ::backing_file file;
+
+        // Ensure the file actually exists
+        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_create(&file, TEST_FILE_PATH, TEST_FILE_SIZE));
+
+        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_destroy(&file));
+        EXPECT_FALSE(std::filesystem::exists(TEST_FILE_PATH));
     }
 
 } // namespace backing_file_testing
