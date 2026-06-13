@@ -125,6 +125,10 @@ namespace backing_file_testing {
     }
 
     // ── Function Tests (backing_file_is_reg) ─────────────────────────────────────────────────────────────────────────
+    TEST(backing_file_is_reg, backing_file_nullptr) {
+        EXPECT_FALSE(::backing_file_is_reg(nullptr));
+        EXPECT_EQ(ENOENT, errno);
+    }
 
     // ── Function Tests (backing_file_create) ─────────────────────────────────────────────────────────────────────────
     TEST(backing_file_create, backing_file_nullptr) {
