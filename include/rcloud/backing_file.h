@@ -29,14 +29,6 @@ struct backing_file {
     uint8_t _padding[4];
 };
 
-enum backing_file_state : uint8_t {
-    DOES_NOT_EXIST,
-    NOT_REGULAR,
-    INVALID_SIZE,
-    VALID,
-    UNKNOWN
-};
-
 static inline int backing_file_open(struct backing_file* file_p, const int flags, const mode_t mode) {
     if (file_p == nullptr) {
         errno = ENOENT;
@@ -60,7 +52,7 @@ static inline int backing_file_close(struct backing_file* file_p) {
 
 extern int backing_file_create(struct backing_file* file_p, const char* path_p, off_t size);
 
-extern enum backing_file_state backing_file_get_state(const char* path_p);
+extern bool backing_file_exists(const char* path_p);
 
 extern int backing_file_destroy(struct backing_file* file_p);
 
