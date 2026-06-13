@@ -19,9 +19,6 @@ target_sources(rcloud_objects
         PRIVATE
             "${CMAKE_SOURCE_DIR}/src/rcloud/util.c"
             "${CMAKE_SOURCE_DIR}/src/rcloud/backing_file.c"
-            "${CMAKE_SOURCE_DIR}/src/rcloud/loop.c"
-            "${CMAKE_SOURCE_DIR}/src/rcloud/filesystem.c"
-            "${CMAKE_SOURCE_DIR}/src/rcloud/fanotify.c"
 )
 
 #-----------------------------------------------------------------------------------------------------------------------
