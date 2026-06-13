@@ -131,25 +131,24 @@ int backing_file_remove(struct backing_file* file_p) {
 }
 
 int backing_file_init(struct backing_file* file_p, const char* path_p) {
-    // Ensure all pointers are non-null
-    if (file_p == nullptr || path_p == nullptr) {
-        errno = EFAULT;
-        return -1;
-    }
-
     // Ensure the backing file actually exists
     struct stat st;
-    if (stat(path_p, &st) == -1) {
+    if (file_p == nullptr || path_p == nullptr || stat(path_p, &st) == -1) {
         errno = ENOENT;
         return -1;
     }
+
+    // Ensure the backing file is a regular file
     if (!S_ISREG(st.st_mode)) {
-        errno = EINVAL;
+        errno = EEXIST;
         return -1;
     }
 
     // Set the file path
-    snprintf(file_p->bk_path, sizeof(file_p->bk_path), "%s", path_p);
+    constexpr size_t path_size = sizeof(file_p->bk_path);
+    const size_t path_len = strnlen(path_p, path_size);
+    strncpy(file_p->bk_path, path_p, path_len);
+    file_p->bk_path[path_len + 1] = '\0';
 
     // Set the file descriptor
     file_p->bk_fd = open(file_p->bk_path, O_RDWR | O_DIRECT | O_CLOEXEC, 0644);
