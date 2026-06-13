@@ -143,7 +143,8 @@ int backing_file_create(struct backing_file* file_p, const char* path_p, const o
 }
 
 int backing_file_destroy(struct backing_file* file_p) {
-    if (file_p == nullptr) {
+    struct stat st;
+    if (file_p == nullptr || !backing_file_exists(file_p->bk_path, &st)) {
         errno = ENOENT;
         return -1;
     }
