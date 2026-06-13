@@ -146,9 +146,34 @@ namespace backing_file_testing {
         std::filesystem::remove(TEST_FILE_PATH);
 
         EXPECT_NE(-1, ::symlink(std::getenv("HOME"), TEST_FILE_PATH));
+
         EXPECT_FALSE(::backing_file_is_reg(TEST_FILE_PATH));
 
         // Remove the symlink
+        std::filesystem::remove(TEST_FILE_PATH);
+    }
+
+    TEST(backing_file_is_reg, is_socket) {
+        // Ensure the socket doesn't already exist
+        std::filesystem::remove(TEST_FILE_PATH);
+
+        // Get a file descriptor to the UNIX socket file
+        const int sock_fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+        EXPECT_NE(-1, sock_fd);
+
+        // Initialize the socket
+        struct ::sockaddr_un unix_sockaddr;
+        unix_sockaddr.sun_family = AF_UNIX;
+        strncpy(unix_sockaddr.sun_path, TEST_FILE_PATH, sizeof(TEST_FILE_PATH) - 1);
+        unix_sockaddr.sun_path[sizeof(TEST_FILE_PATH)] = '\0';
+
+        // Bind the UNIX socket to the test file
+        EXPECT_NE(-1, ::bind(sock_fd, reinterpret_cast<struct ::sockaddr*>(&unix_sockaddr), sizeof(struct ::sockaddr_un)));
+        ::close(sock_fd);
+
+        EXPECT_FALSE(::backing_file_is_reg(TEST_FILE_PATH));
+
+        // Remove the socket
         std::filesystem::remove(TEST_FILE_PATH);
     }
 
