@@ -123,5 +123,11 @@ namespace backing_file_testing {
         EXPECT_EQ(-1, file.bk_fd);
     }
 
+    TEST(backing_file_get_state, backing_file_nullptr) {
+        EXPECT_EQ(DOES_NOT_EXIST, ::backing_file_get_state(nullptr));
+    }
+
+
+
 } // namespace backing_file_testing
 
