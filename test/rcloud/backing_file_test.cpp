@@ -37,6 +37,43 @@ namespace backing_file_testing {
 
     } // unnamed namespace
 
+    // ── Function Tests (backing_file_open) ───────────────────────────────────────────────────────────────────────────
+
+    // ── Function Tests (backing_file_close) ──────────────────────────────────────────────────────────────────────────
+
+    // ── Function Tests (backing_file_exists) ─────────────────────────────────────────────────────────────────────────
+    TEST(backing_file_exists, backing_file_nullptr) { EXPECT_FALSE(::backing_file_exists(nullptr)); }
+
+    TEST(backing_file_exists, does_not_exist) {
+        constexpr struct ::backing_file file = {
+            .bk_path = "/no/such/path/to/file.img",
+            .bk_size = TEST_FILE_SIZE,
+            .bk_fd = -1
+        };
+
+        // Ensure the path does not exist
+        std::filesystem::remove_all(file.bk_path);
+
+        EXPECT_FALSE(::backing_file_exists(file.bk_path));
+    }
+
+    TEST(backing_file_exists, exists) {
+        // Ensure the file doesn't already exist
+        std::filesystem::remove_all(TEST_FILE_PATH);
+
+        std::fstream file{TEST_FILE_PATH, std::ios::out};
+        EXPECT_TRUE(file.is_open());
+        std::print(file, "");
+        file.close();
+
+        EXPECT_TRUE(::backing_file_exists(TEST_FILE_PATH));
+
+        // Remove the file
+        std::filesystem::remove(TEST_FILE_PATH);
+    }
+
+    // ── Function Tests (backing_file_is_reg) ─────────────────────────────────────────────────────────────────────────
+
     // ── Function Tests (backing_file_create) ─────────────────────────────────────────────────────────────────────────
     TEST(backing_file_create, backing_file_nullptr) {
         EXPECT_EQ(-1, ::backing_file_create(nullptr, "no/such/path", 0));
@@ -134,36 +171,10 @@ namespace backing_file_testing {
         EXPECT_EQ(-1, file.bk_fd);
     }
 
-    // ── Function Tests (backing_file_exists) ─────────────────────────────────────────────────────────────────────────
-    TEST(backing_file_exists, backing_file_nullptr) { EXPECT_FALSE(::backing_file_exists(nullptr)); }
+    // ── Function Tests (backing_file_init) ───────────────────────────────────────────────────────────────────────────
 
-    TEST(backing_file_exists, does_not_exist) {
-        constexpr struct ::backing_file file = {
-            .bk_path = "/no/such/path/to/file.img",
-            .bk_size = TEST_FILE_SIZE,
-            .bk_fd = -1
-        };
+    // ── Function Tests (backing_file_destroy) ────────────────────────────────────────────────────────────────────────
 
-        // Ensure the path does not exist
-        std::filesystem::remove_all(file.bk_path);
-
-        EXPECT_FALSE(::backing_file_exists(file.bk_path));
-    }
-
-    TEST(backing_file_exists, exists) {
-        // Ensure the file doesn't already exist
-        std::filesystem::remove_all(TEST_FILE_PATH);
-
-        std::fstream file{TEST_FILE_PATH, std::ios::out};
-        EXPECT_TRUE(file.is_open());
-        std::print(file, "");
-        file.close();
-
-        EXPECT_TRUE(::backing_file_exists(TEST_FILE_PATH));
-
-        // Remove the file
-        std::filesystem::remove(TEST_FILE_PATH);
-    }
 
 } // namespace backing_file_testing
 
