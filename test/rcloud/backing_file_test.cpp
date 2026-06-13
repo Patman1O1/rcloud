@@ -19,6 +19,7 @@
 #include <rcloud/backing_file.h>
 
 namespace backing_file_testing {
+
     TEST(backing_file_create, backing_file_nullptr) {
         EXPECT_EQ(-1, ::backing_file_create(nullptr, "no/such/path", 0));
         EXPECT_EQ(EFAULT, errno);
@@ -40,6 +41,13 @@ namespace backing_file_testing {
 
         EXPECT_EQ(-1, ::backing_file_create(&file, "no/such/path", 0));
         EXPECT_EQ(EINVAL, errno);
+    }
+
+    TEST(backing_file_create, path_size_too_large) {
+        struct ::backing_file file;
+        constexpr char path[] = "/helloworld/helloworld/helloworld/helloworld/helloworld/helloworld/helloworld";
+        EXPECT_EQ(-1, ::backing_file_create(&file, path, 4096));
+        EXPECT_EQ(ENAMETOOLONG, errno);
     }
 
     
