@@ -144,7 +144,10 @@ namespace backing_file_testing {
         // Ensure the symlink doesn't already exist
         std::filesystem::remove(TEST_FILE_PATH);
 
-        EXPECT_NE(-1, ::symlink(std::getenv("HOME"), TEST_FILE_PATH));
+        // Create the symlink
+        const int fd = ::symlink(std::getenv("HOME"), TEST_FILE_PATH);
+        EXPECT_NE(-1, fd);
+        ::close(fd);
 
         EXPECT_FALSE(::backing_file_is_reg(TEST_FILE_PATH));
 
@@ -156,7 +159,10 @@ namespace backing_file_testing {
         // Ensure the pipe doesn't already exist
         std::filesystem::remove(TEST_FILE_PATH);
 
-        EXPECT_NE(-1, ::mkfifo(TEST_FILE_PATH, 0666));
+        // Create the pipe
+        const int fd = ::mkfifo(TEST_FILE_PATH, 0666);
+        EXPECT_NE(-1, fd);
+        ::close(fd);
 
         EXPECT_FALSE(::backing_file_is_reg(TEST_FILE_PATH));
 
@@ -192,13 +198,14 @@ namespace backing_file_testing {
         // Ensure the file doesn't already exist
         std::filesystem::remove(TEST_FILE_PATH);
 
+        // Create the file
         const int fd = ::open(TEST_FILE_PATH, O_RDONLY | O_CREAT, 0644);
         EXPECT_NE(-1, fd);
+        ::close(fd);
 
         EXPECT_TRUE(::backing_file_is_reg(TEST_FILE_PATH));
 
         // Remove the file
-        ::close(fd);
         std::filesystem::remove(TEST_FILE_PATH);
     }
 
@@ -300,6 +307,63 @@ namespace backing_file_testing {
     }
 
     // ── Function Tests (backing_file_init) ───────────────────────────────────────────────────────────────────────────
+    TEST(backing_file_init, backing_file_nullptr) {
+        EXPECT_EQ(-1, ::backing_file_init(nullptr, TEST_FILE_PATH));
+        EXPECT_EQ(ENOENT, errno);
+    }
+
+    TEST(backing_file_init, path_nullptr) {
+        struct ::backing_file file;
+        EXPECT_EQ(-1, ::backing_file_init(&file, nullptr));
+        EXPECT_EQ(ENOENT, errno);
+    }
+
+    TEST(backing_file_init, file_does_not_exist) {
+        // Ensure the file actually does not exist
+        std::filesystem::remove(TEST_FILE_PATH);
+
+        struct ::backing_file file;
+
+        EXPECT_EQ(-1, ::backing_file_init(&file, TEST_FILE_PATH));
+        EXPECT_EQ(ENOENT, errno);
+    }
+
+    TEST(backing_file_init, file_exists_but_not_regular) {
+        // Remove the file if it exists
+        std::filesystem::remove(TEST_FILE_PATH);
+
+        // Create a pipe
+        const int fd = ::mkfifo(TEST_FILE_PATH, 0666);
+        EXPECT_NE(-1, fd);
+        ::close(fd);
+
+        struct ::backing_file file;
+        EXPECT_EQ(-1, ::backing_file_init(&file, TEST_FILE_PATH));
+        EXPECT_EQ(EEXIST, errno);
+
+        // Remove the pipe
+        std::filesystem::remove(TEST_FILE_PATH);
+    }
+
+    TEST(backing_file_init, file_exists_and_is_regular) {
+        // Remove the file if it exists
+        std::filesystem::remove(TEST_FILE_PATH);
+
+        // Create the file
+        const int fd = ::open(TEST_FILE_PATH, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
+        EXPECT_NE(-1, ::ftruncate(fd, TEST_FILE_SIZE));
+        EXPECT_NE(-1, fd);
+        ::close(fd);
+
+        struct ::backing_file file;
+        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_init(&file, TEST_FILE_PATH));
+        EXPECT_NE(-1, file.bk_fd);
+        EXPECT_EQ(TEST_FILE_SIZE, file.bk_size);
+
+        // Remove the file
+        ::close(file.bk_fd);
+        std::filesystem::remove(TEST_FILE_PATH);
+    }
 
     // ── Function Tests (backing_file_destroy) ────────────────────────────────────────────────────────────────────────
 
