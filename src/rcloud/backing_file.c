@@ -35,20 +35,15 @@ static inline bool backing_file_exists(const char* path_p, struct stat* st_p) {
     return stat(path_p, st_p) == EXIT_SUCCESS;
 }
 
-static inline bool backing_file_is_regular(const struct stat* st_p) { return S_ISREG(st_p->st_mode) == EXIT_SUCCESS; }
+static inline bool backing_file_is_regular(const struct stat* st_p) { return S_ISREG(st_p->st_mode); }
 
 static inline bool backing_file_is_valid_size(const struct stat* st_p, const off_t size) {
     return st_p->st_size > size;
 }
 
 enum backing_file_state backing_file_get_state(const char* path_p) {
-    if (path_p == nullptr) {
-        errno = EFAULT;
-        return DOES_NOT_EXIST;
-    }
-
     struct stat st;
-    if (!backing_file_exists(path_p, &st)) {
+    if (path_p == nullptr || !backing_file_exists(path_p, &st)) {
         return DOES_NOT_EXIST;
     }
 
