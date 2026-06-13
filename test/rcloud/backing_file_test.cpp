@@ -230,5 +230,17 @@ namespace backing_file_testing {
         std::filesystem::remove_all("/tmp/test");
     }
 
+    TEST(backing_file_get_state, exists_but_is_symlink) {
+        // Ensure the directory doesn't already exist
+        std::filesystem::remove_all("/tmp/test");
+
+        create_symlink("/tmp", "/tmp/test");
+
+        EXPECT_EQ(NOT_REGULAR, ::backing_file_get_state("/tmp/test"));
+
+        // Remove the symlink
+        std::filesystem::remove_all("/tmp/test");
+    }
+
 } // namespace backing_file_testing
 
