@@ -16,7 +16,7 @@
 
 // POSIX Includes
 #include <sys/stat.h>
-#include <sys/statfs.h>
+#include <sys/statvfs.h>
 #include <ftw.h>
 
 // GNU Includes
@@ -30,38 +30,6 @@ extern "C" {
 #endif // #ifdef __cplusplus
 
 static inline int remove_cb(const char* path_p, const struct stat*, int, struct FTW*) { return remove(path_p); }
-
-static inline bool backing_file_exists(const char* path_p, struct stat* st_p) {
-    return stat(path_p, st_p) == EXIT_SUCCESS;
-}
-
-static inline bool backing_file_is_regular(const struct stat* st_p) { return S_ISREG(st_p->st_mode); }
-
-static inline bool backing_file_is_valid_size(const struct stat* st_p, const off_t size) {
-    return st_p->st_size > size;
-}
-
-enum backing_file_state backing_file_get_state(const char* path_p) {
-    struct stat st;
-    if (path_p == nullptr || !backing_file_exists(path_p, &st)) {
-        return DOES_NOT_EXIST;
-    }
-
-    if (!backing_file_is_regular(&st)) {
-        return NOT_REGULAR;
-    }
-
-    struct statfs sf;
-    if (statfs(path_p, &sf) == -1) {
-        return UNKNOWN;
-    }
-
-    if (!backing_file_is_valid_size(&st, (off_t)sf.f_bavail * sf.f_bsize)) {
-        return errno == 0 ? INVALID_SIZE : UNKNOWN;
-    }
-
-    return VALID;
-}
 
 int backing_file_create(struct backing_file* file_p, const char* path_p, const off_t size) {
     // Ensure all pointers are non-null
@@ -87,7 +55,7 @@ int backing_file_create(struct backing_file* file_p, const char* path_p, const o
 
     // Check if the backing file already exists
     struct stat st;
-    if (backing_file_exists(path_p, &st)) {
+    if (backing_file_exists(path_p)) {
         errno = EEXIST;
         return -1;
     }
@@ -137,9 +105,13 @@ int backing_file_create(struct backing_file* file_p, const char* path_p, const o
     return EXIT_SUCCESS;
 }
 
-int backing_file_destroy(struct backing_file* file_p) {
+bool backing_file_exists(const char* path_p) {
     struct stat st;
-    if (file_p == nullptr || !backing_file_exists(file_p->bk_path, &st)) {
+    return path_p != nullptr && stat(path_p, &st) == EXIT_SUCCESS;
+}
+
+int backing_file_destroy(struct backing_file* file_p) {
+    if (file_p == nullptr || !backing_file_exists(file_p->bk_path)) {
         errno = ENOENT;
         return -1;
     }
