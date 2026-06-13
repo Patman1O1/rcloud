@@ -153,6 +153,18 @@ namespace backing_file_testing {
         std::filesystem::remove(TEST_FILE_PATH);
     }
 
+    TEST(backing_file_is_reg, is_pipe) {
+        // Ensure the pipe doesn't already exist
+        std::filesystem::remove(TEST_FILE_PATH);
+
+        EXPECT_NE(-1, ::mkfifo(TEST_FILE_PATH, 0666));
+
+        EXPECT_FALSE(::backing_file_is_reg(TEST_FILE_PATH));
+
+        // Remove the pipe
+        std::filesystem::remove(TEST_FILE_PATH);
+    }
+
     TEST(backing_file_is_reg, is_socket) {
         // Ensure the socket doesn't already exist
         std::filesystem::remove(TEST_FILE_PATH);
