@@ -11,7 +11,6 @@
 #include <string>
 #include <filesystem>
 #include <fstream>
-#include <system_error>
 #include <expected>
 
 // POSIX Includes
@@ -100,13 +99,13 @@ namespace backing_file_testing {
         std::filesystem::remove(TEST_FILE_PATH);
     }
 
-    // ── Function Tests (backing_file_destroy) ────────────────────────────────────────────────────────────────────────
-    TEST(backing_file_destroy, backing_file_nullptr) {
-        EXPECT_EQ(-1, ::backing_file_destroy(nullptr));
+    // ── Function Tests (backing_file_remove) ─────────────────────────────────────────────────────────────────────────
+    TEST(backing_file_remove, backing_file_nullptr) {
+        EXPECT_EQ(-1, ::backing_file_remove(nullptr));
         EXPECT_EQ(ENOENT, errno);
     }
 
-    TEST(backing_file_destroy, file_does_not_exist) {
+    TEST(backing_file_remove, file_does_not_exist) {
         struct ::backing_file file = {
             .bk_path = "/no/such/path/to/file.img",
             .bk_size = TEST_FILE_SIZE,
@@ -116,11 +115,11 @@ namespace backing_file_testing {
         // Ensure the path actually does not exist
         std::filesystem::remove_all(file.bk_path);
 
-        EXPECT_EQ(-1, ::backing_file_destroy(&file));
+        EXPECT_EQ(-1, ::backing_file_remove(&file));
         EXPECT_EQ(ENOENT, errno);
     }
 
-    TEST(backing_file_destroy, file_exists) {
+    TEST(backing_file_remove, file_exists) {
         struct ::backing_file file;
 
         // Ensure the file actually exists
@@ -130,7 +129,7 @@ namespace backing_file_testing {
         file.bk_fd = ::backing_file_open(&file, O_WRONLY, 0644);
 
         EXPECT_NE(-1, file.bk_fd);
-        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_destroy(&file));
+        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_remove(&file));
         EXPECT_FALSE(std::filesystem::exists(TEST_FILE_PATH));
         EXPECT_EQ(-1, file.bk_fd);
     }
