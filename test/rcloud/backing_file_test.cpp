@@ -5,12 +5,12 @@
 // ISO C++ Includes
 #include <filesystem>
 #include <fstream>
-#include <system_error>
 
 // ISO C Includes
 
 // POSIX Includes
 #include <unistd.h>
+#include <sys/stat.h>
 
 // GNU Includes
 
@@ -70,6 +70,19 @@ namespace backing_file_testing {
 
         EXPECT_EQ(-1, ::backing_file_create(&file, TEST_FILE_PATH, TEST_FILE_SIZE));
         EXPECT_EQ(EEXIST, errno);
+
+        // Remove the file
+        std::filesystem::remove(TEST_FILE_PATH);
+    }
+
+    TEST(backing_file_create, everything_valid) {
+        struct ::backing_file file;
+        struct ::stat st;
+
+        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_create(&file, TEST_FILE_PATH, TEST_FILE_SIZE));
+        EXPECT_TRUE(std::filesystem::exists(TEST_FILE_PATH));
+        EXPECT_EQ(EXIT_SUCCESS, ::stat(TEST_FILE_PATH, &st));
+        EXPECT_EQ(TEST_FILE_SIZE, st.st_size);
 
         // Remove the file
         std::filesystem::remove(TEST_FILE_PATH);
