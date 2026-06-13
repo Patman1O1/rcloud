@@ -68,3 +68,41 @@ target_link_libraries(backing_file_test
             GTest::gmock_main
 )
 gtest_discover_tests(backing_file_test)
+
+#-----------------------------------------------------------------------------------------------------------------------
+# Target Name: loop_test
+# Target Type: Executable
+#-----------------------------------------------------------------------------------------------------------------------
+# Define the test target
+add_executable(loop_test)
+
+# Set properties
+set_target_properties(loop_test PROPERTIES
+        OUTPUT_NAME loop-test
+)
+
+# Include directories
+target_include_directories(loop_test
+        PRIVATE
+            "${CMAKE_SOURCE_DIR}/include/rcloud"
+        PUBLIC
+            "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>"
+            "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
+)
+
+# Set sources
+target_sources(loop_test
+        PRIVATE
+            "${CMAKE_SOURCE_DIR}/src/rcloud/util.c"
+            "${CMAKE_SOURCE_DIR}/src/rcloud/backing_file.c"
+            "${CMAKE_SOURCE_DIR}/src/rcloud/loop.c"
+            "${CMAKE_CURRENT_SOURCE_DIR}/loop_test.cpp"
+)
+
+target_link_libraries(loop_test
+        PRIVATE
+            GTest::gtest_main
+            GTest::gmock_main
+)
+gtest_discover_tests(loop_test)
+
