@@ -366,7 +366,31 @@ namespace backing_file_testing {
     }
 
     // ── Function Tests (backing_file_destroy) ────────────────────────────────────────────────────────────────────────
+    TEST(backing_file_destroy, backing_file_nullptr) {
+        ::backing_file_destroy(nullptr);
+        EXPECT_EQ(ENOENT, errno);
+    }
 
+    TEST(backing_file_destroy, valid_file) {
+        struct ::backing_file file;
+
+        // Ensure the file doesn't already exist
+        std::filesystem::remove(TEST_FILE_PATH);
+
+        // Create the file
+        const int fd = ::open(TEST_FILE_PATH, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
+        EXPECT_NE(-1, fd);
+        ::close(fd);
+
+        // Initialize the backing file struct
+        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_init(&file, TEST_FILE_PATH));
+
+        ::backing_file_destroy(&file);
+        EXPECT_EQ(-1, file.bk_fd);
+
+        // Remove the file
+        std::filesystem::remove(TEST_FILE_PATH);
+    }
 
 } // namespace backing_file_testing
 
