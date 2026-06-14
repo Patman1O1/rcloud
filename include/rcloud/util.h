@@ -26,9 +26,9 @@
 extern "C" {
 #endif // #ifdef __cplusplus
 
-static inline int _remove_cb(const char* path_p, const struct stat*, int, struct FTW*) { return remove(path_p); }
+static constexpr uid_t ROOT_UID = 0;
 
-static inline bool has_root_privileges(void) { return geteuid() == 0; }
+static inline int _remove_cb(const char* path_p, const struct stat*, int, struct FTW*) { return remove(path_p); }
 
 extern int mkdirs(const char* path_p, mode_t mode);
 
