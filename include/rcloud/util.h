@@ -17,6 +17,7 @@
 #include <errno.h>
 
 // POSIX Includes
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <ftw.h>
@@ -24,6 +25,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif // #ifdef __cplusplus
+
+static inline bool has_root_privileges(void) { return geteuid() == 0; }
 
 static inline int _remove_cb(const char* path_p, const struct stat*, int, struct FTW*) { return remove(path_p); }
 
@@ -39,8 +42,6 @@ static inline int rmdirs(const char* path_p) {
 }
 
 extern const char* gethome(void);
-
-static inline bool has_root_privileges(void) { return geteuid() == 0; }
 
 #ifdef __cplusplus
 }
