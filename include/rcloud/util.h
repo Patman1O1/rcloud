@@ -40,6 +40,8 @@ static inline int rmdirs(const char* path_p) {
 
 extern const char* gethome(void);
 
+static inline bool has_root_privileges(void) { return geteuid() == 0; }
+
 #ifdef __cplusplus
 }
 #endif // #ifdef __cplusplus
