@@ -7,27 +7,26 @@
 // POSIX C Includes
 #include <unistd.h>
 #include <fcntl.h>
-#include <pwd.h>
 
 // Third Party Includes
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
 // Local Includes
-#include <cstring>
 #include <rcloud/util.h>
 
 namespace util_testing {
-    static constexpr ::mode_t DEFAULT_MODE = 0755;
+    namespace {
+        constexpr ::mode_t DEFAULT_MODE = 0755;
 
-    static inline void touch(const char* path_p) { // throws std::system_error
-        const int fd = ::open(path_p, O_RDWR | O_CREAT, 0600);
-        if (fd == -1) {
-            throw std::system_error(errno, std::system_category());
+        inline void touch(const char* path_p) { // throws std::system_error
+            const int fd = ::open(path_p, O_RDWR | O_CREAT, 0600);
+            if (fd == -1) {
+                throw std::system_error(errno, std::system_category());
+            }
+            ::close(fd);
         }
-
-        ::close(fd);
-    }
+    } // unnamed namespace
 
     // ── Function Tests (mkdirs) ──────────────────────────────────────────────────────────────────────────────────────
     TEST(mkdirs, nullptr_path) {
@@ -372,6 +371,8 @@ namespace util_testing {
         // Ensure the test directory no longer exists
         EXPECT_FALSE(std::filesystem::exists("/tmp/testdir"));
     }
+
+    // ── Function Tests (has_root_privileges) ─────────────────────────────────────────────────────────────────────────
 
 } // namespace util_testing
 
