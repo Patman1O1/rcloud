@@ -371,8 +371,5 @@ namespace util_testing {
         // Ensure the test directory no longer exists
         EXPECT_FALSE(std::filesystem::exists("/tmp/testdir"));
     }
-
-    // ── Function Tests (has_root_privileges) ─────────────────────────────────────────────────────────────────────────
-
 } // namespace util_testing
 
