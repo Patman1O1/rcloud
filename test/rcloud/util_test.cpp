@@ -29,6 +29,7 @@ namespace util_testing {
         ::close(fd);
     }
 
+    // ── Function Tests (mkdirs) ──────────────────────────────────────────────────────────────────────────────────────
     TEST(mkdirs, nullptr_path) {
         EXPECT_EQ(-1, ::mkdirs(nullptr, 0));
         EXPECT_EQ(ENOENT, errno);
@@ -223,12 +224,13 @@ namespace util_testing {
         std::filesystem::remove_all("/tmp/testdir");
     }
 
+    // ── Function Tests (rmdirs) ──────────────────────────────────────────────────────────────────────────────────────
     TEST(rmdirs, nullptr_path) {
         EXPECT_EQ(-1, ::rmdirs(nullptr));
         EXPECT_EQ(ENOENT, errno);
     }
 
-    TEST(rmirs, null_byte_path) {
+    TEST(rmdirs, null_byte_path) {
         EXPECT_EQ(-1, ::rmdirs("\0"));
         EXPECT_EQ(ENOENT, errno);
     }
