@@ -28,7 +28,7 @@
 extern "C" {
 #endif // #ifdef __cplusplus
 
-static inline int remove_cb(const char* path_p, const struct stat*, int, struct FTW*) { return remove(path_p); }
+static inline int nftw_func(const char* path_p, const struct stat*, int, struct FTW*) { return remove(path_p); }
 
 int backing_file_create(struct backing_file* file_p, const char* path_p, const off_t size) {
     // Ensure all pointers are non-null
@@ -117,7 +117,7 @@ int backing_file_remove(struct backing_file* file_p) {
     }
 
     // Remove the file
-    if (nftw(file_p->bk_path, remove_cb, 64, FTW_DEPTH | FTW_PHYS) == -1) {
+    if (nftw(file_p->bk_path, nftw_func, 64, FTW_DEPTH | FTW_PHYS) == -1) {
         return -1;
     }
 
