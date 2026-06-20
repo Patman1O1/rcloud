@@ -6,6 +6,7 @@
 #endif // #ifndef _GNU_SOURCE
 
 // ISO Includes
+#include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
@@ -29,27 +30,6 @@ struct backing_file {
     int bk_fd;
     uint8_t _padding[4];
 };
-
-static inline int backing_file_open(struct backing_file* file_p, const int flags, const mode_t mode) {
-    if (file_p == nullptr) {
-        errno = ENOENT;
-        return -1;
-    }
-
-    file_p->bk_fd = open(file_p->bk_path, flags, mode);
-    return file_p->bk_fd;
-}
-
-static inline int backing_file_close(struct backing_file* file_p) {
-    if (file_p == nullptr) {
-        errno = ENOENT;
-        return -1;
-    }
-
-    const int ret = close(file_p->bk_fd);
-    file_p->bk_fd = -1;
-    return ret;
-}
 
 static inline bool backing_file_exists(const char* path_p) {
     struct stat st;
