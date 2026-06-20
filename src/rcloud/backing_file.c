@@ -10,7 +10,6 @@
 #define _XOPEN_SOURCE 500
 
 // ISO Includes
-#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
