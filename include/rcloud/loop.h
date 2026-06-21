@@ -6,6 +6,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// POSIX Includes
+#include <sys/ioctl.h>
+
 // GNU Includes
 #include <linux/loop.h>
 
@@ -30,6 +33,9 @@ static constexpr size_t LOOP_DEV_NAME_MAX = 16;
 
 static constexpr size_t LOOP_MUTEX_PATH_MAX = 32;
 
+// The absolute path to the Loop Control file.
+static constexpr char LOOP_CTL_PATH[] = "/dev/loop-control";
+
 struct loop_device {
     struct loop_config lo_cfg;
     char lo_path[LOOP_DEV_PATH_MAX];
@@ -42,27 +48,41 @@ struct loop_device_mutex {
     int m_fd;
 };
 
-extern int loop_ctl_open(void);
+static inline int loop_ctl_get_free(const int ctl_fd) { return ioctl(ctl_fd, LOOP_CTL_GET_FREE); }
 
-extern int loop_ctl_get_free(int ctl_fd);
+static inline int loop_ctl_add(const int ctl_fd, const unsigned long int lo_number) {
+    return ioctl(ctl_fd, LOOP_CTL_ADD, lo_number);
+}
 
-extern int loop_ctl_add(int ctl_fd, unsigned long int lo_number);
+static inline int loop_ctl_remove(const int ctl_fd, const unsigned long int lo_number) {
+    return ioctl(ctl_fd, LOOP_CTL_REMOVE, lo_number);
+}
 
-extern int loop_ctl_remove(int ctl_fd, unsigned long int lo_number);
+static inline int loop_config(const int loop_fd, const struct loop_config* lo_cfg_p) {
+    return ioctl(loop_fd, LOOP_CONFIGURE, lo_cfg_p);
+}
 
-extern int loop_config(int loop_fd, const struct loop_config* lo_cfg_p);
+static inline int loop_change_fd(const int loop_fd, const int bk_fd) {
+    return ioctl(loop_fd, LOOP_CHANGE_FD, bk_fd);
+}
 
-extern int loop_change_fd(int loop_fd, int bk_fd);
+static inline int loop_set_status64(const int loop_fd, const struct loop_info64* lo_info64_p) {
+    return ioctl(loop_fd, LOOP_SET_STATUS64, lo_info64_p);
+}
 
-extern int loop_set_status64(int loop_fd, const struct loop_info64* lo_info64_p);
+static inline int loop_get_status64(const int loop_fd, struct loop_info64* lo_info64_p) {
+    return ioctl(loop_fd, LOOP_GET_STATUS64, lo_info64_p);
+}
 
-extern int loop_get_status64(int loop_fd, struct loop_info64* lo_info64_p);
+static inline int loop_set_block_size(const int loop_fd, const size_t block_size) {
+    return ioctl(loop_fd, LOOP_SET_BLOCK_SIZE, block_size);
+}
 
-extern int loop_set_block_size(int loop_fd, size_t block_size);
+static inline int loop_set_direct_io(const int loop_fd, const bool direct_io_flag) {
+    return ioctl(loop_fd, LOOP_SET_DIRECT_IO, direct_io_flag);
+}
 
-extern int loop_set_direct_io(int loop_fd, bool direct_io_flag);
-
-extern int loop_set_capacity(int loop_fd);
+static inline int loop_set_capacity(const int loop_fd) { return ioctl(loop_fd, LOOP_SET_CAPACITY, 0); }
 
 extern int loop_device_init(struct loop_device* lo_dev_p, const struct backing_file* bk_file_p);
 
