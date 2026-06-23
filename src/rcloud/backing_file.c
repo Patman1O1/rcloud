@@ -131,51 +131,6 @@ int backing_file_remove(struct backing_file* file) {
     return EXIT_SUCCESS;
 }
 
-int backing_file_init(struct backing_file* file, const char* path) {
-    // Ensure the backing file actually exists
-    struct stat st;
-    if (file == nullptr || path == nullptr || stat(path, &st) == -1) {
-        errno = ENOENT;
-        return -1;
-    }
-
-    // Ensure the backing file is a regular file
-    if (!S_ISREG(st.st_mode)) {
-        errno = EEXIST;
-        return -1;
-    }
-
-    // Set the file path
-    const size_t path_size = sizeof(file->bk_path);
-    const size_t path_len = strnlen(path, path_size - 1);
-    memcpy(file->bk_path, path, path_len);
-    file->bk_path[path_len] = '\0';
-
-    // Set the file descriptor
-    file->bk_fd = open(file->bk_path, O_RDWR | O_DIRECT | O_CLOEXEC, 0644);
-    if (file->bk_fd == -1) {
-        return -1;
-    }
-
-    // Set the file size
-    file->bk_size = st.st_size;
-
-    return EXIT_SUCCESS;
-}
-
-void backing_file_destroy(struct backing_file* file) {
-    if (file == nullptr) {
-        errno = ENOENT;
-        return;
-    }
-
-    // Close the file if it is still open
-    if (file->bk_fd >= 0) {
-        close(file->bk_fd);
-        file->bk_fd = -1;
-    }
-}
-
 #ifdef __cplusplus
 }
 #endif // #ifdef __cplusplus
