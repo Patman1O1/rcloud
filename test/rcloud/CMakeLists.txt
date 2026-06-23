@@ -130,6 +130,9 @@ target_include_directories(drive_test
 # Set sources
 target_sources(drive_test
         PRIVATE
+            "${CMAKE_SOURCE_DIR}/src/rcloud/fs.c"
+            "${CMAKE_SOURCE_DIR}/src/rcloud/backing_file.c"
+            "${CMAKE_SOURCE_DIR}/src/rcloud/loop.c"
             "${CMAKE_SOURCE_DIR}/src/rcloud/drive.c"
             "${CMAKE_CURRENT_SOURCE_DIR}/drive_test.cpp"
 )
