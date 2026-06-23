@@ -1,17 +1,17 @@
 #-----------------------------------------------------------------------------------------------------------------------
-# Target Name: util_test
+# Target Name: fs_test
 # Target Type: Executable
 #-----------------------------------------------------------------------------------------------------------------------
 # Define the test target
-add_executable(util_test)
+add_executable(fs_test)
 
 # Set properties
-set_target_properties(util_test PROPERTIES
-        OUTPUT_NAME util-test
+set_target_properties(fs_test PROPERTIES
+        OUTPUT_NAME fs-test
 )
 
 # Include directories
-target_include_directories(util_test
+target_include_directories(fs_test
         PRIVATE
             "${CMAKE_SOURCE_DIR}/include/rcloud"
         PUBLIC
@@ -20,18 +20,18 @@ target_include_directories(util_test
 )
 
 # Set sources
-target_sources(util_test
+target_sources(fs_test
         PRIVATE
-            "${CMAKE_SOURCE_DIR}/src/rcloud/util.c"
-            "${CMAKE_CURRENT_SOURCE_DIR}/util_test.cpp"
+            "${CMAKE_SOURCE_DIR}/src/rcloud/fs.c"
+            "${CMAKE_CURRENT_SOURCE_DIR}/fs_test.cpp"
 )
 
-target_link_libraries(util_test
+target_link_libraries(fs_test
         PRIVATE
             GTest::gtest_main
             GTest::gmock_main
 )
-gtest_discover_tests(util_test)
+gtest_discover_tests(fs_test)
 
 #-----------------------------------------------------------------------------------------------------------------------
 # Target Name: backing_file_test
@@ -57,7 +57,7 @@ target_include_directories(backing_file_test
 # Set sources
 target_sources(backing_file_test
         PRIVATE
-            "${CMAKE_SOURCE_DIR}/src/rcloud/util.c"
+            "${CMAKE_SOURCE_DIR}/src/rcloud/fs.c"
             "${CMAKE_SOURCE_DIR}/src/rcloud/backing_file.c"
             "${CMAKE_CURRENT_SOURCE_DIR}/backing_file_test.cpp"
 )
@@ -93,7 +93,7 @@ target_include_directories(loop_test
 # Set sources
 target_sources(loop_test
         PRIVATE
-            "${CMAKE_SOURCE_DIR}/src/rcloud/util.c"
+            "${CMAKE_SOURCE_DIR}/src/rcloud/fs.c"
             "${CMAKE_SOURCE_DIR}/src/rcloud/backing_file.c"
             "${CMAKE_SOURCE_DIR}/src/rcloud/loop.c"
             "${CMAKE_CURRENT_SOURCE_DIR}/loop_test.cpp"
