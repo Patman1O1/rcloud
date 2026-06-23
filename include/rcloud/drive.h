@@ -1,8 +1,14 @@
-//
-// Created by patri on 6/23/2026.
-//
-
 #ifndef RCLOUD_DRIVE_H
 #define RCLOUD_DRIVE_H
 
-#endif //RCLOUD_DRIVE_H
+#ifdef __cplusplus
+extern "C" {
+#endif // #ifdef __cplusplus
+
+
+
+#ifdef __cplusplus
+}
+#endif // #ifdef __cplusplus
+
+#endif // #ifndef RCLOUD_DRIVE_H
