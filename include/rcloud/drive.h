@@ -5,9 +5,9 @@
 extern "C" {
 #endif // #ifdef __cplusplus
 
-extern int drive_create(void);
+extern int create_drive(void);
 
-extern int drive_destroy(void);
+extern int destroy_drive(void);
 
 #ifdef __cplusplus
 }
