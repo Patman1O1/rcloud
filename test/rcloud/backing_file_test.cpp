@@ -11,6 +11,7 @@
 #include <string>
 #include <filesystem>
 #include <fstream>
+#include <expected>
 
 // POSIX Includes
 #include <unistd.h>
@@ -34,63 +35,17 @@ namespace backing_file_testing {
         constexpr char TEST_FILE_PATH[] = "/tmp/test.img";
         constexpr ::off_t TEST_FILE_SIZE =  1074000000L; // 1 Gibibyte (GiB)
 
+        std::expected<void, std::string> create_file(std::string&& path) noexcept {
+            const int fd = ::open(path.c_str(), O_CREAT, 0644);
+            if (fd == -1) {
+                return std::unexpected<std::string>(std::strerror(errno));
+            }
+
+            ::close(fd);
+            return {};
+        }
+
     } // unnamed namespace
-
-    // ── Function Tests (backing_file_open) ───────────────────────────────────────────────────────────────────────────
-    TEST(backing_file_open, backing_file_nullptr) {
-        EXPECT_EQ(-1, ::backing_file_open(nullptr, 0, 0000));
-        EXPECT_EQ(ENOENT, errno);
-    }
-
-    TEST(backing_file_open, valid_file) {
-        constexpr std::uint32_t flags = O_RDONLY | O_CLOEXEC;
-        struct ::backing_file file;
-
-        // Ensure the file exists
-        std::filesystem::remove(TEST_FILE_PATH);
-        const int fd = ::open(TEST_FILE_PATH, flags | O_CREAT, 0644);
-        EXPECT_NE(-1, fd);
-        ::close(fd);
-
-        // Initialize the struct
-        std::strncpy(file.bk_path, TEST_FILE_PATH, sizeof(TEST_FILE_PATH) - 1);
-        file.bk_path[sizeof(TEST_FILE_PATH)] = '\0';
-        file.bk_size = TEST_FILE_SIZE;
-
-        EXPECT_NE(-1, ::backing_file_open(&file, flags, 0644));
-
-        // Close and remove the file
-        ::close(file.bk_fd);
-        std::filesystem::remove(TEST_FILE_PATH);
-    }
-
-    // ── Function Tests (backing_file_close) ──────────────────────────────────────────────────────────────────────────
-    TEST(backing_file_close, backing_file_nullptr) {
-        EXPECT_EQ(-1, ::backing_file_close(nullptr));
-        EXPECT_EQ(ENOENT, errno);
-    }
-
-    TEST(backing_file_close, valid_file) {
-        constexpr std::uint32_t flags = O_RDONLY | O_CLOEXEC;
-        struct ::backing_file file;
-
-        // Ensure the file exists
-        std::filesystem::remove(TEST_FILE_PATH);
-        const int fd = ::open(TEST_FILE_PATH, flags | O_CREAT, 0644);
-        EXPECT_NE(-1, fd);
-        ::close(fd);
-
-        // Initialize the struct
-        std::strncpy(file.bk_path, TEST_FILE_PATH, sizeof(TEST_FILE_PATH) - 1);
-        file.bk_path[sizeof(TEST_FILE_PATH)] = '\0';
-        file.bk_size = TEST_FILE_SIZE;
-
-        EXPECT_NE(-1, ::backing_file_close(&file));
-        EXPECT_EQ(-1, file.bk_fd);
-
-        // Close and remove the file
-        std::filesystem::remove(TEST_FILE_PATH);
-    }
 
     // ── Function Tests (backing_file_exists) ─────────────────────────────────────────────────────────────────────────
     TEST(backing_file_exists, backing_file_nullptr) { EXPECT_FALSE(::backing_file_exists(nullptr)); }
@@ -298,98 +253,12 @@ namespace backing_file_testing {
         EXPECT_EQ(EXIT_SUCCESS, ::backing_file_create(&file, TEST_FILE_PATH, TEST_FILE_SIZE));
         EXPECT_TRUE(std::filesystem::exists(TEST_FILE_PATH));
 
-        file.bk_fd = ::backing_file_open(&file, O_WRONLY, 0644);
+        file.bk_fd = ::open(file.bk_path, O_WRONLY, 0644);
 
         EXPECT_NE(-1, file.bk_fd);
         EXPECT_EQ(EXIT_SUCCESS, ::backing_file_remove(&file));
         EXPECT_FALSE(std::filesystem::exists(TEST_FILE_PATH));
         EXPECT_EQ(-1, file.bk_fd);
-    }
-
-    // ── Function Tests (backing_file_init) ───────────────────────────────────────────────────────────────────────────
-    TEST(backing_file_init, backing_file_nullptr) {
-        EXPECT_EQ(-1, ::backing_file_init(nullptr, TEST_FILE_PATH));
-        EXPECT_EQ(ENOENT, errno);
-    }
-
-    TEST(backing_file_init, path_nullptr) {
-        struct ::backing_file file;
-        EXPECT_EQ(-1, ::backing_file_init(&file, nullptr));
-        EXPECT_EQ(ENOENT, errno);
-    }
-
-    TEST(backing_file_init, file_does_not_exist) {
-        // Ensure the file actually does not exist
-        std::filesystem::remove(TEST_FILE_PATH);
-
-        struct ::backing_file file;
-
-        EXPECT_EQ(-1, ::backing_file_init(&file, TEST_FILE_PATH));
-        EXPECT_EQ(ENOENT, errno);
-    }
-
-    TEST(backing_file_init, file_exists_but_not_regular) {
-        // Remove the file if it exists
-        std::filesystem::remove(TEST_FILE_PATH);
-
-        // Create a pipe
-        const int fd = ::mkfifo(TEST_FILE_PATH, 0666);
-        EXPECT_NE(-1, fd);
-        ::close(fd);
-
-        struct ::backing_file file;
-        EXPECT_EQ(-1, ::backing_file_init(&file, TEST_FILE_PATH));
-        EXPECT_EQ(EEXIST, errno);
-
-        // Remove the pipe
-        std::filesystem::remove(TEST_FILE_PATH);
-    }
-
-    TEST(backing_file_init, file_exists_and_is_regular) {
-        // Remove the file if it exists
-        std::filesystem::remove(TEST_FILE_PATH);
-
-        // Create the file
-        const int fd = ::open(TEST_FILE_PATH, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
-        EXPECT_NE(-1, ::ftruncate(fd, TEST_FILE_SIZE));
-        EXPECT_NE(-1, fd);
-        ::close(fd);
-
-        struct ::backing_file file;
-        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_init(&file, TEST_FILE_PATH));
-        EXPECT_NE(-1, file.bk_fd);
-        EXPECT_EQ(TEST_FILE_SIZE, file.bk_size);
-
-        // Remove the file
-        ::close(file.bk_fd);
-        std::filesystem::remove(TEST_FILE_PATH);
-    }
-
-    // ── Function Tests (backing_file_destroy) ────────────────────────────────────────────────────────────────────────
-    TEST(backing_file_destroy, backing_file_nullptr) {
-        ::backing_file_destroy(nullptr);
-        EXPECT_EQ(ENOENT, errno);
-    }
-
-    TEST(backing_file_destroy, valid_file) {
-        struct ::backing_file file;
-
-        // Ensure the file doesn't already exist
-        std::filesystem::remove(TEST_FILE_PATH);
-
-        // Create the file
-        const int fd = ::open(TEST_FILE_PATH, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
-        EXPECT_NE(-1, fd);
-        ::close(fd);
-
-        // Initialize the backing file struct
-        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_init(&file, TEST_FILE_PATH));
-
-        ::backing_file_destroy(&file);
-        EXPECT_EQ(-1, file.bk_fd);
-
-        // Remove the file
-        std::filesystem::remove(TEST_FILE_PATH);
     }
 
 } // namespace backing_file_testing
