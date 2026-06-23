@@ -27,7 +27,7 @@
 extern "C" {
 #endif // #ifdef __cplusplus
 
-static inline int nftw_func(const char* path, const struct stat* sb, int typeflag, struct FTW* ftwbuf) {
+static inline int nftw_func(const char* path, const struct stat*, int, struct FTW*) {
     return remove(path);
 }
 
