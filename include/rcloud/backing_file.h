@@ -48,10 +48,6 @@ extern int backing_file_create(struct backing_file* file, const char* path, off_
 
 extern int backing_file_remove(struct backing_file* file);
 
-extern int backing_file_init(struct backing_file* file, const char* path);
-
-extern void backing_file_destroy(struct backing_file* file);
-
 #ifdef __cplusplus
 }
 #endif // #ifndef __cplusplus
