@@ -49,3 +49,10 @@ static char* gethome(char* result_buf, const size_t result_size) {
     return result_buf;
 }
 
+int create_drive(void) {
+    return EXIT_SUCCESS;
+}
+
+int destroy_drive(void) {
+    return EXIT_SUCCESS;
+}
