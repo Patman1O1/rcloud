@@ -23,9 +23,9 @@ static inline bool backing_file_exists(const char* path) {
     return stat64(path, &st64) == EXIT_SUCCESS;
 }
 
-static inline bool backing_file_is_reg(const int fd) {
+static inline bool backing_file_is_reg(const char* path) {
     struct stat64 st64;
-    if (fstat64(fd, &st64) == -1) {
+    if (stat64(path, &st64) == -1) {
         errno = ENOENT;
         return false;
     }
