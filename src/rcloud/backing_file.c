@@ -31,102 +31,54 @@ static inline int nftw_func(const char* path, const struct stat* sb, int typefla
     return remove(path);
 }
 
-int backing_file_create(struct backing_file* file, const char* path, const off_t size) {
-    // Ensure all pointers are non-null
-    if (file == nullptr || path == nullptr) {
-        errno = EFAULT;
+int backing_file_create(const char* path, const off_t size) {
+    if (path == nullptr || size <= 0) {
+        errno = path == nullptr ? EFAULT : EINVAL;
         return -1;
     }
 
-    if (size <= 0) {
-        errno = EINVAL;
-        return -1;
-    }
-
-    // Ensure the length of the path does not exceed the buffer size
-    const size_t path_len = strlen(path);
-    if (sizeof(file->bk_path) <= path_len + 1) {
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-
-    // Initialize all bytes in the struct to 0
-    memset(file, 0x00, sizeof(struct backing_file));
-
-    // Check if the backing file already exists
-    if (backing_file_exists(path)) {
-        errno = EEXIST;
-        return -1;
-    }
-
-    // Exit the function if errno is not "No such file or directory"
-    if (errno != ENOENT) {
-        return -1;
-    }
-
-    // Isolate parent directory path safely
+    // Isolate parent directory path and create if necessary
     const char* last_slash = strrchr(path, '/');
     if (last_slash != nullptr) {
-        // Get the length of the path to backing file's directory
         const size_t dir_len = last_slash - path;
-
-        // Extract the directory path
         char dir_path[dir_len + 1];
         memcpy(dir_path, path, dir_len);
         dir_path[dir_len] = '\0';
 
-        // Ensure the directory path exists
         if (mkdirs(dir_path, 0755) == -1) {
             return -1;
         }
     }
 
-    // Create the backing file and get a file descriptor to it
-    const int fd = open(path, O_CREAT | O_WRONLY | O_EXCL | O_CLOEXEC, 0644);
+    // Create the file only if it does not exist.
+    const int fd = open(path, O_CREAT | O_RDWR | O_EXCL | O_CLOEXEC, 0644);
     if (fd == -1) {
-        return -1;
+        return -1; // errno is correctly set to EEXIST if file exists
     }
 
-    // Allocate the requested size for the backing file
+    // Allocate the requested size
     if (ftruncate(fd, size) == -1) {
+        const int saved_errno = errno;
         close(fd);
+        unlink(path);
+        errno = saved_errno;
         return -1;
     }
 
-    // Close the backing file
-    close(fd);
-
-    // Copy the entire path into the backing file struct's bk_path field
-    memcpy(file->bk_path, path, path_len + 1);
-
-    // Set the size field
-    file->bk_size = size;
-
-    return EXIT_SUCCESS;
+    // Return the open file descriptor to the caller
+    return fd;
 }
 
-int backing_file_remove(struct backing_file* file) {
-    if (file == nullptr || !backing_file_exists(file->bk_path)) {
+int backing_file_remove(const char* path) {
+    if (path == nullptr || !backing_file_exists(path)) {
         errno = ENOENT;
         return -1;
     }
 
-    // Close the file if it is open
-    if (file->bk_fd >= 0) {
-        close(file->bk_fd);
-        file->bk_fd = -1;
-    }
-
     // Remove the file
-    if (nftw(file->bk_path, nftw_func, 64, FTW_DEPTH | FTW_PHYS) == -1) {
+    if (nftw(path, nftw_func, 64, FTW_DEPTH | FTW_PHYS) == -1) {
         return -1;
     }
-
-    // Zero out all the bytes in the path string
-    memset(file->bk_path, 0x00, sizeof(file->bk_path));
-
-    // Set the file size to -1 (since it no longer exists)
-    file->bk_size = -1;
 
     return EXIT_SUCCESS;
 }
