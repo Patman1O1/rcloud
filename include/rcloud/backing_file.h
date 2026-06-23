@@ -7,7 +7,6 @@
 
 // ISO Includes
 #include <stdlib.h>
-#include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
 
@@ -15,38 +14,27 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
-// GNU Includes
-#include <linux/loop.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif // #ifndef __cplusplus
 
-struct backing_file {
-    char bk_path[LO_NAME_SIZE];
-    off_t bk_size;
-    int bk_fd;
-    uint8_t _padding[4];
-};
-
-static inline bool backing_file_exists(const char* path) {
-    struct stat st;
-    return path != nullptr && stat(path, &st) == EXIT_SUCCESS;
+static inline bool backing_file_exists(const int fd) {
+    struct stat64 st64;
+    return fstat64(fd, &st64) == EXIT_SUCCESS;
 }
 
-static inline bool backing_file_is_reg(const char* path) {
-    struct stat st;
-    if (path == nullptr || stat(path, &st) == -1) {
+static inline bool backing_file_is_reg(const int fd) {
+    struct stat64 st64;
+    if (fstat64(fd, &st64) == -1) {
         errno = ENOENT;
         return false;
     }
-
-    return S_ISREG(st.st_mode);
+    return S_ISREG(st64.st_mode);
 }
 
-extern int backing_file_create(struct backing_file* file, const char* path, off_t size);
+extern int backing_file_create(const char* path, off_t size);
 
-extern int backing_file_remove(struct backing_file* file);
+extern int backing_file_remove(int fd);
 
 #ifdef __cplusplus
 }
