@@ -18,9 +18,9 @@
 extern "C" {
 #endif // #ifndef __cplusplus
 
-static inline bool backing_file_exists(const int fd) {
+static inline bool backing_file_exists(const char* path) {
     struct stat64 st64;
-    return fstat64(fd, &st64) == EXIT_SUCCESS;
+    return stat64(path, &st64) == EXIT_SUCCESS;
 }
 
 static inline bool backing_file_is_reg(const int fd) {
@@ -34,7 +34,7 @@ static inline bool backing_file_is_reg(const int fd) {
 
 extern int backing_file_create(const char* path, off_t size);
 
-extern int backing_file_remove(int fd);
+extern int backing_file_remove(const char* path);
 
 #ifdef __cplusplus
 }
