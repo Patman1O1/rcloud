@@ -11,7 +11,6 @@
 #include <string>
 #include <filesystem>
 #include <fstream>
-#include <expected>
 
 // POSIX Includes
 #include <unistd.h>
@@ -35,32 +34,16 @@ namespace backing_file_testing {
         constexpr char TEST_FILE_PATH[] = "/tmp/test.img";
         constexpr ::off_t TEST_FILE_SIZE =  1074000000L; // 1 Gibibyte (GiB)
 
-        std::expected<void, std::string> create_file(std::string&& path) noexcept {
-            const int fd = ::open(path.c_str(), O_CREAT, 0644);
-            if (fd == -1) {
-                return std::unexpected<std::string>(std::strerror(errno));
-            }
-
-            ::close(fd);
-            return {};
-        }
-
     } // unnamed namespace
 
     // ── Function Tests (backing_file_exists) ─────────────────────────────────────────────────────────────────────────
     TEST(backing_file_exists, backing_file_nullptr) { EXPECT_FALSE(::backing_file_exists(nullptr)); }
 
     TEST(backing_file_exists, does_not_exist) {
-        constexpr struct ::backing_file file = {
-            .bk_path = "/no/such/path/to/file.img",
-            .bk_size = TEST_FILE_SIZE,
-            .bk_fd = -1
-        };
-
         // Ensure the path does not exist
-        std::filesystem::remove_all(file.bk_path);
+        std::filesystem::remove_all("/no/such/path/to/file.img");
 
-        EXPECT_FALSE(::backing_file_exists(file.bk_path));
+        EXPECT_FALSE(::backing_file_exists("/no/such/path/to/file.img"));
     }
 
     TEST(backing_file_exists, exists) {
@@ -166,38 +149,33 @@ namespace backing_file_testing {
 
     // ── Function Tests (backing_file_create) ─────────────────────────────────────────────────────────────────────────
     TEST(backing_file_create, backing_file_nullptr) {
-        EXPECT_EQ(-1, ::backing_file_create(nullptr, "no/such/path", 0));
+        EXPECT_EQ(-1, ::backing_file_create("no/such/path", 0));
         EXPECT_EQ(EFAULT, errno);
     }
 
     TEST(backing_file_create, path_nullptr) {
-        struct ::backing_file file;
-        EXPECT_EQ(-1, ::backing_file_create(&file, nullptr, 0));
+        EXPECT_EQ(-1, ::backing_file_create(nullptr, 0));
         EXPECT_EQ(EFAULT, errno);
     }
 
     TEST(backing_file_create, non_positive_size) {
-        struct ::backing_file file;
-        EXPECT_EQ(-1, ::backing_file_create(&file, "no/such/path", -1));
+        EXPECT_EQ(-1, ::backing_file_create("no/such/path", -1));
         EXPECT_EQ(EINVAL, errno);
 
         // Reset errno
         errno = 0;
 
-        EXPECT_EQ(-1, ::backing_file_create(&file, "no/such/path", 0));
+        EXPECT_EQ(-1, ::backing_file_create("no/such/path", 0));
         EXPECT_EQ(EINVAL, errno);
     }
 
     TEST(backing_file_create, path_size_too_large) {
-        struct ::backing_file file;
         constexpr char path[] = "/helloworld/helloworld/helloworld/helloworld/helloworld/helloworld/helloworld";
-        EXPECT_EQ(-1, ::backing_file_create(&file, path, 4096));
+        EXPECT_EQ(-1, ::backing_file_create(path, 4096));
         EXPECT_EQ(ENAMETOOLONG, errno);
     }
 
     TEST(backing_file_create, file_already_exists) {
-        struct ::backing_file file;
-
         // Ensure the file doesn't already exist
         std::filesystem::remove(TEST_FILE_PATH);
 
@@ -206,7 +184,7 @@ namespace backing_file_testing {
             backing_file.close();
         }
 
-        EXPECT_EQ(-1, ::backing_file_create(&file, TEST_FILE_PATH, TEST_FILE_SIZE));
+        EXPECT_EQ(-1, ::backing_file_create(TEST_FILE_PATH, TEST_FILE_SIZE));
         EXPECT_EQ(EEXIST, errno);
 
         // Remove the file
@@ -214,10 +192,9 @@ namespace backing_file_testing {
     }
 
     TEST(backing_file_create, everything_valid) {
-        struct ::backing_file file;
         struct ::stat st;
 
-        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_create(&file, TEST_FILE_PATH, TEST_FILE_SIZE));
+        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_create(TEST_FILE_PATH, TEST_FILE_SIZE));
         EXPECT_TRUE(std::filesystem::exists(TEST_FILE_PATH));
         EXPECT_EQ(EXIT_SUCCESS, ::stat(TEST_FILE_PATH, &st));
         EXPECT_EQ(TEST_FILE_SIZE, st.st_size);
@@ -233,32 +210,24 @@ namespace backing_file_testing {
     }
 
     TEST(backing_file_remove, file_does_not_exist) {
-        struct ::backing_file file = {
-            .bk_path = "/no/such/path/to/file.img",
-            .bk_size = TEST_FILE_SIZE,
-            .bk_fd = -1,
-        };
-
         // Ensure the path actually does not exist
-        std::filesystem::remove_all(file.bk_path);
+        std::filesystem::remove_all("/no/such/path/to/file.img");
 
-        EXPECT_EQ(-1, ::backing_file_remove(&file));
+        EXPECT_EQ(-1, ::backing_file_remove("/no/such/path/to/file.img"));
         EXPECT_EQ(ENOENT, errno);
     }
 
     TEST(backing_file_remove, file_exists) {
-        struct ::backing_file file;
-
         // Ensure the file actually exists
-        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_create(&file, TEST_FILE_PATH, TEST_FILE_SIZE));
+        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_create(TEST_FILE_PATH, TEST_FILE_SIZE));
         EXPECT_TRUE(std::filesystem::exists(TEST_FILE_PATH));
 
-        file.bk_fd = ::open(file.bk_path, O_WRONLY, 0644);
+        const int fd = ::open(TEST_FILE_PATH, O_WRONLY, 0644);
 
-        EXPECT_NE(-1, file.bk_fd);
-        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_remove(&file));
+        EXPECT_NE(-1, fd);
+        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_remove(TEST_FILE_PATH));
         EXPECT_FALSE(std::filesystem::exists(TEST_FILE_PATH));
-        EXPECT_EQ(-1, file.bk_fd);
+        EXPECT_EQ(-1, fd);
     }
 
 } // namespace backing_file_testing
