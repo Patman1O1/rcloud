@@ -29,14 +29,14 @@ struct backing_file {
     uint8_t _padding[4];
 };
 
-static inline bool backing_file_exists(const char* path_p) {
+static inline bool backing_file_exists(const char* path) {
     struct stat st;
-    return path_p != nullptr && stat(path_p, &st) == EXIT_SUCCESS;
+    return path != nullptr && stat(path, &st) == EXIT_SUCCESS;
 }
 
-static inline bool backing_file_is_reg(const char* path_p) {
+static inline bool backing_file_is_reg(const char* path) {
     struct stat st;
-    if (path_p == nullptr || stat(path_p, &st) == -1) {
+    if (path == nullptr || stat(path, &st) == -1) {
         errno = ENOENT;
         return false;
     }
@@ -44,17 +44,16 @@ static inline bool backing_file_is_reg(const char* path_p) {
     return S_ISREG(st.st_mode);
 }
 
-extern int backing_file_create(struct backing_file* file_p, const char* path_p, off_t size);
+extern int backing_file_create(struct backing_file* file, const char* path, off_t size);
 
-extern int backing_file_remove(struct backing_file* file_p);
+extern int backing_file_remove(struct backing_file* file);
 
-extern int backing_file_init(struct backing_file* file_p, const char* path_p);
+extern int backing_file_init(struct backing_file* file, const char* path);
 
-extern void backing_file_destroy(struct backing_file* file_p);
+extern void backing_file_destroy(struct backing_file* file);
 
 #ifdef __cplusplus
 }
 #endif // #ifndef __cplusplus
 
 #endif // #ifndef BACKING_FILE_H
-
