@@ -1,234 +1,275 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
-#endif // #ifndef _GNU_SOURCE
-
-// ISO C Includes
-#include <cstdlib>
-#include <cstring>
-#include <cerrno>
+#endif
 
 // ISO C++ Includes
+#include <optional>
 #include <string>
-#include <filesystem>
-#include <fstream>
+
+// ISO C Includes
+#include <cerrno>
+#include <cstring>
 
 // POSIX Includes
-#include <unistd.h>
 #include <fcntl.h>
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/un.h>
+#include <unistd.h>
 
-// GNU Includes
-
-// Third Party Includes
+// Google Test Includes
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
 // Local Includes
-#include <rcloud/backing_file.h>
+#include "rcloud/backing_file.h"
+#include "fd_handle.hpp"
+#include "file_handle.hpp"
+#include "dir_handle.hpp"
+
+#define BACKING_FILE_TEST_TMPDIR "/tmp/rcloud_backing_file_test_XXXXXX"
 
 namespace backing_file_testing {
     namespace {
-        constexpr char TEST_FILE_PATH[] = "/tmp/test.img";
-        constexpr ::off_t TEST_FILE_SIZE =  1074000000L; // 1 Gibibyte (GiB)
+        inline ::off64_t file_size_on_disk(const char* path) noexcept {
+            struct ::stat64 st64;
+            return ::stat64(path, &st64) == EXIT_SUCCESS ? st64.st_size : -1;
+        }
+    } // anonymous namespace
 
-    } // unnamed namespace
+    // ── backing_file_test_base ───────────────────────────────────────────────────────────────────────────────────────
+    class backing_file_test_base : public ::testing::Test {
+    protected:
+        std::optional<rcloud_testing::dir_handle> test_dir_;
 
-    // ── Function Tests (backing_file_exists) ─────────────────────────────────────────────────────────────────────────
-    TEST(backing_file_exists, backing_file_nullptr) { EXPECT_FALSE(::backing_file_exists(nullptr)); }
-
-    TEST(backing_file_exists, does_not_exist) {
-        // Ensure the path does not exist
-        std::filesystem::remove_all("/no/such/path/to/file.img");
-
-        EXPECT_FALSE(::backing_file_exists("/no/such/path/to/file.img"));
-    }
-
-    TEST(backing_file_exists, exists) {
-        // Ensure the file doesn't already exist
-        std::filesystem::remove_all(TEST_FILE_PATH);
-
-        std::fstream file{TEST_FILE_PATH, std::ios::out};
-        EXPECT_TRUE(file.is_open());
-        std::print(file, "");
-        file.close();
-
-        EXPECT_TRUE(::backing_file_exists(TEST_FILE_PATH));
-
-        // Remove the file
-        std::filesystem::remove(TEST_FILE_PATH);
-    }
-
-    // ── Function Tests (backing_file_is_reg) ─────────────────────────────────────────────────────────────────────────
-    TEST(backing_file_is_reg, backing_file_nullptr) {
-        EXPECT_FALSE(::backing_file_is_reg(nullptr));
-        EXPECT_EQ(ENOENT, errno);
-    }
-
-    TEST(backing_file_is_reg, is_directory) {
-        // Ensure the directory doesn't already exist
-        std::filesystem::remove_all(TEST_FILE_PATH);
-
-        EXPECT_NE(-1, ::mkdir(TEST_FILE_PATH, 0755));
-        EXPECT_FALSE(::backing_file_is_reg(TEST_FILE_PATH));
-
-        // Remove the directory
-        std::filesystem::remove_all(TEST_FILE_PATH);
-    }
-
-    TEST(backing_file_is_reg, is_symlink) {
-        // Ensure the symlink doesn't already exist
-        std::filesystem::remove(TEST_FILE_PATH);
-
-        // Create the symlink
-        const int fd = ::symlink(std::getenv("HOME"), TEST_FILE_PATH);
-        EXPECT_NE(-1, fd);
-        ::close(fd);
-
-        EXPECT_FALSE(::backing_file_is_reg(TEST_FILE_PATH));
-
-        // Remove the symlink
-        std::filesystem::remove(TEST_FILE_PATH);
-    }
-
-    TEST(backing_file_is_reg, is_pipe) {
-        // Ensure the pipe doesn't already exist
-        std::filesystem::remove(TEST_FILE_PATH);
-
-        // Create the pipe
-        const int fd = ::mkfifo(TEST_FILE_PATH, 0666);
-        EXPECT_NE(-1, fd);
-        ::close(fd);
-
-        EXPECT_FALSE(::backing_file_is_reg(TEST_FILE_PATH));
-
-        // Remove the pipe
-        std::filesystem::remove(TEST_FILE_PATH);
-    }
-
-    TEST(backing_file_is_reg, is_socket) {
-        // Ensure the socket doesn't already exist
-        std::filesystem::remove(TEST_FILE_PATH);
-
-        // Get a file descriptor to the UNIX socket file
-        const int sock_fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
-        EXPECT_NE(-1, sock_fd);
-
-        // Initialize the socket
-        struct ::sockaddr_un unix_sockaddr;
-        unix_sockaddr.sun_family = AF_UNIX;
-        strncpy(unix_sockaddr.sun_path, TEST_FILE_PATH, sizeof(TEST_FILE_PATH) - 1);
-        unix_sockaddr.sun_path[sizeof(TEST_FILE_PATH)] = '\0';
-
-        // Bind the UNIX socket to the test file
-        EXPECT_NE(-1, ::bind(sock_fd, reinterpret_cast<struct ::sockaddr*>(&unix_sockaddr), sizeof(struct ::sockaddr_un)));
-        ::close(sock_fd);
-
-        EXPECT_FALSE(::backing_file_is_reg(TEST_FILE_PATH));
-
-        // Remove the socket
-        std::filesystem::remove(TEST_FILE_PATH);
-    }
-
-    TEST(backing_file_is_reg, is_regular_file) {
-        // Ensure the file doesn't already exist
-        std::filesystem::remove(TEST_FILE_PATH);
-
-        // Create the file
-        const int fd = ::open(TEST_FILE_PATH, O_RDONLY | O_CREAT, 0644);
-        EXPECT_NE(-1, fd);
-        ::close(fd);
-
-        EXPECT_TRUE(::backing_file_is_reg(TEST_FILE_PATH));
-
-        // Remove the file
-        std::filesystem::remove(TEST_FILE_PATH);
-    }
-
-    // ── Function Tests (backing_file_create) ─────────────────────────────────────────────────────────────────────────
-    TEST(backing_file_create, backing_file_nullptr) {
-        EXPECT_EQ(-1, ::backing_file_create("no/such/path", 0));
-        EXPECT_EQ(EFAULT, errno);
-    }
-
-    TEST(backing_file_create, path_nullptr) {
-        EXPECT_EQ(-1, ::backing_file_create(nullptr, 0));
-        EXPECT_EQ(EFAULT, errno);
-    }
-
-    TEST(backing_file_create, non_positive_size) {
-        EXPECT_EQ(-1, ::backing_file_create("no/such/path", -1));
-        EXPECT_EQ(EINVAL, errno);
-
-        // Reset errno
-        errno = 0;
-
-        EXPECT_EQ(-1, ::backing_file_create("no/such/path", 0));
-        EXPECT_EQ(EINVAL, errno);
-    }
-
-    TEST(backing_file_create, path_size_too_large) {
-        constexpr char path[] = "/helloworld/helloworld/helloworld/helloworld/helloworld/helloworld/helloworld";
-        EXPECT_EQ(-1, ::backing_file_create(path, 4096));
-        EXPECT_EQ(ENAMETOOLONG, errno);
-    }
-
-    TEST(backing_file_create, file_already_exists) {
-        // Ensure the file doesn't already exist
-        std::filesystem::remove(TEST_FILE_PATH);
-
-        // Create the file
-        if (std::fstream backing_file(TEST_FILE_PATH, std::ios::out);backing_file.is_open()) {
-            backing_file.close();
+        void SetUp() override {
+            char tmpl[] = BACKING_FILE_TEST_TMPDIR;
+            const char* dir = ::mkdtemp(tmpl);
+            ASSERT_NE(dir, nullptr) << "mkdtemp failed: " << ::strerror(errno);
+            test_dir_.emplace(dir);
         }
 
-        EXPECT_EQ(-1, ::backing_file_create(TEST_FILE_PATH, TEST_FILE_SIZE));
-        EXPECT_EQ(EEXIST, errno);
+        std::string path(const std::string& rel) const {
+            return static_cast<const char*>(*test_dir_) + std::string("/") + rel;
+        }
+    };
 
-        // Remove the file
-        std::filesystem::remove(TEST_FILE_PATH);
+    // ── backing_file_create ──────────────────────────────────────────────────────────────────────────────────────────
+
+    class backing_file_create_test : public backing_file_test_base {};
+
+    // ── Happy paths ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+    TEST_F(backing_file_create_test, create_files_in_existing_directory) {
+        const std::string p = path("flat.img");
+
+        const rcloud_testing::fd_handle handle{ ::backing_file_create(p.c_str()) };
+
+        ASSERT_NE(static_cast<int>(handle), -1) << "backing_file_create failed: " << std::strerror(errno);
+        EXPECT_EQ(::access(p.c_str(), F_OK), EXIT_SUCCESS) << "File not found after creation";
     }
 
-    TEST(backing_file_create, everything_valid) {
-        struct ::stat st;
+    TEST_F(backing_file_create_test, has_o_rdwr_flag) {
+        const std::string p = path("rw.img");
 
-        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_create(TEST_FILE_PATH, TEST_FILE_SIZE));
-        EXPECT_TRUE(std::filesystem::exists(TEST_FILE_PATH));
-        EXPECT_EQ(EXIT_SUCCESS, ::stat(TEST_FILE_PATH, &st));
-        EXPECT_EQ(TEST_FILE_SIZE, st.st_size);
+        const rcloud_testing::fd_handle handle{ ::backing_file_create(p.c_str()) };
+        ASSERT_NE(static_cast<int>(handle), -1);
 
-        // Remove the file
-        std::filesystem::remove(TEST_FILE_PATH);
+        const char w = 0x42;
+        ASSERT_EQ(::write(static_cast<int>(handle), &w, 1), 1);
+        ASSERT_EQ(::lseek(static_cast<int>(handle), 0, SEEK_SET), 0);
+        char r = 0;
+        ASSERT_EQ(::read(static_cast<int>(handle), &r, 1), 1);
+        EXPECT_EQ(r, w);
     }
 
-    // ── Function Tests (backing_file_remove) ─────────────────────────────────────────────────────────────────────────
-    TEST(backing_file_remove, backing_file_nullptr) {
-        EXPECT_EQ(-1, ::backing_file_remove(nullptr));
-        EXPECT_EQ(ENOENT, errno);
+    TEST_F(backing_file_create_test, FdHasCloseOnExecSet) {
+        const std::string p = path("cloexec.img");
+
+        const rcloud_testing::fd_handle handle{ backing_file_create(p.c_str()) };
+        ASSERT_NE(static_cast<int>(handle), -1);
+
+        const int flags = ::fcntl(static_cast<int>(handle), F_GETFD);
+        ASSERT_NE(flags, -1);
+        EXPECT_TRUE(flags & FD_CLOEXEC) << "O_CLOEXEC not set on returned fd";
     }
 
-    TEST(backing_file_remove, file_does_not_exist) {
-        // Ensure the path actually does not exist
-        std::filesystem::remove_all("/no/such/path/to/file.img");
+    TEST_F(backing_file_create_test, CreatesIntermediateDirectories) {
+        const std::string p = path("a/b/c/deep.img");
 
-        EXPECT_EQ(-1, ::backing_file_remove("/no/such/path/to/file.img"));
-        EXPECT_EQ(ENOENT, errno);
+        const rcloud_testing::fd_handle handle{ ::backing_file_create(p.c_str()) };
+
+        ASSERT_NE(static_cast<int>(handle), -1) << "backing_file_create with nested dirs failed: " << ::strerror(errno);
+        EXPECT_EQ(::access(p.c_str(), F_OK), EXIT_SUCCESS);
     }
 
-    TEST(backing_file_remove, file_exists) {
-        // Ensure the file actually exists
-        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_create(TEST_FILE_PATH, TEST_FILE_SIZE));
-        EXPECT_TRUE(std::filesystem::exists(TEST_FILE_PATH));
+    TEST_F(backing_file_create_test, NewFileIsEmpty) {
+        const std::string p = path("empty.img");
 
-        const int fd = ::open(TEST_FILE_PATH, O_WRONLY, 0644);
+        const rcloud_testing::fd_handle handle{ backing_file_create(p.c_str()) };
+        ASSERT_NE(static_cast<int>(handle), -1);
 
-        EXPECT_NE(-1, fd);
-        EXPECT_EQ(EXIT_SUCCESS, ::backing_file_remove(TEST_FILE_PATH));
-        EXPECT_FALSE(std::filesystem::exists(TEST_FILE_PATH));
-        EXPECT_EQ(-1, fd);
+        EXPECT_EQ(file_size_on_disk(p.c_str()), 0);
     }
 
+    // ── Failure paths ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    TEST_F(backing_file_create_test, FailsWhenFileAlreadyExists) {
+        const std::string p = path("exists.img");
+
+        const rcloud_testing::fd_handle existing{ ::open(p.c_str(), O_CREAT | O_WRONLY, 0644) };
+        ASSERT_NE(static_cast<int>(existing), -1);
+
+        int raw_fd = backing_file_create(p.c_str());
+        EXPECT_EQ(raw_fd, -1);
+        EXPECT_EQ(errno, EEXIST);
+    }
+
+    TEST_F(backing_file_create_test, FailsOnReadOnlyParentDirectory) {
+        if (::getuid() == 0) {
+            GTEST_SKIP() << "Running as root; permission test not meaningful";
+        }
+
+        const std::string ro_dir = path("readonly");
+        ASSERT_EQ(::mkdir(ro_dir.c_str(), 0555), EXIT_SUCCESS);
+
+        int raw_fd = backing_file_create((ro_dir + "/denied.img").c_str());
+        EXPECT_EQ(raw_fd, -1);
+    }
+
+    // ── backing_file_init ────────────────────────────────────────────────────────────────────────────────────────────
+
+    class backing_file_init_test : public backing_file_test_base {
+    protected:
+        static void create_file_of_size(const std::string& p, ::off64_t size) {
+            const rcloud_testing::fd_handle handle{ ::open(p.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0644) };
+            ASSERT_NE(static_cast<int>(handle), -1) << ::strerror(errno);
+            if (size > 0) {
+                ASSERT_EQ(::ftruncate64(static_cast<int>(handle), size), EXIT_SUCCESS) << ::strerror(errno);
+            }
+        }
+    };
+
+    TEST_F(backing_file_init_test, CreatesAndSizesNewFile) {
+        const std::string p = path("new.img");
+        constexpr ::off64_t target = 4096;
+
+        const rcloud_testing::fd_handle handle{ ::backing_file_init(p.c_str(), target) };
+
+        ASSERT_NE(static_cast<int>(handle), -1) << "backing_file_init failed: " << std::strerror(errno);
+        EXPECT_EQ(::access(p.c_str(), F_OK), EXIT_SUCCESS);
+        EXPECT_GE(file_size_on_disk(p.c_str()), target);
+    }
+
+    TEST_F(backing_file_init_test, NewFileReturnedFdIsReadWrite) {
+        const std::string p = path("rw_new.img");
+
+        const rcloud_testing::fd_handle handle{ backing_file_init(p.c_str(), 512) };
+        ASSERT_NE(static_cast<int>(handle), -1);
+
+        const char w = 0xAB;
+        ASSERT_EQ(::write(static_cast<int>(handle), &w, 1), 1);
+        ASSERT_EQ(::lseek(static_cast<int>(handle), 0, SEEK_SET), 0);
+        char r = 0;
+        ASSERT_EQ(::read(static_cast<int>(handle), &r, 1), 1);
+        EXPECT_EQ(r, w);
+    }
+
+    TEST_F(backing_file_init_test, NewFileFdHasCloseOnExecSet) {
+        const std::string p = path("cloexec_new.img");
+
+        const rcloud_testing::fd_handle handle{ backing_file_init(p.c_str(), 512) };
+        ASSERT_NE(static_cast<int>(handle), -1);
+
+        const int flags = ::fcntl(static_cast<int>(handle), F_GETFD);
+        ASSERT_NE(flags, -1);
+        EXPECT_TRUE(flags & FD_CLOEXEC);
+    }
+
+    TEST_F(backing_file_init_test, ExistingFileLargerThanTargetIsReturnedAsIs) {
+        const std::string p = path("big.img");
+        constexpr ::off64_t existing = 8192;
+        constexpr ::off64_t target   = 4096;
+
+        create_file_of_size(p, existing);
+
+        const rcloud_testing::fd_handle handle{ backing_file_init(p.c_str(), target) };
+        ASSERT_NE(static_cast<int>(handle), -1);
+
+        EXPECT_GE(file_size_on_disk(p.c_str()), existing);
+    }
+
+    TEST_F(backing_file_init_test, ExistingFileEqualToTargetIsReturnedAsIs) {
+        const std::string p = path("exact.img");
+        constexpr ::off64_t target = 4096;
+
+        create_file_of_size(p, target);
+
+        const rcloud_testing::fd_handle handle{ backing_file_init(p.c_str(), target) };
+        ASSERT_NE(static_cast<int>(handle), -1);
+
+        EXPECT_EQ(file_size_on_disk(p.c_str()), target);
+    }
+
+    TEST_F(backing_file_init_test, ExistingFileSmallerThanTargetIsExtended) {
+        const std::string p = path("small.img");
+        constexpr ::off64_t existing = 1024;
+        constexpr ::off64_t target   = 4096;
+
+        create_file_of_size(p, existing);
+
+        const rcloud_testing::fd_handle handle{ backing_file_init(p.c_str(), target) };
+        ASSERT_NE(static_cast<int>(handle), -1);
+
+        EXPECT_GE(file_size_on_disk(p.c_str()), target);
+    }
+
+    TEST_F(backing_file_init_test, ExistingEmptyFileIsExtendedToTarget) {
+        const std::string p = path("zero.img");
+        constexpr ::off64_t target = 512;
+
+        create_file_of_size(p, 0);
+
+        const rcloud_testing::fd_handle handle{ backing_file_init(p.c_str(), target) };
+        ASSERT_NE(static_cast<int>(handle), -1);
+
+        EXPECT_GE(file_size_on_disk(p.c_str()), target);
+    }
+
+    TEST_F(backing_file_init_test, ExistingFileFdHasCloseOnExecSet) {
+        const std::string p = path("cloexec_existing.img");
+        create_file_of_size(p, 4096);
+
+        const rcloud_testing::fd_handle handle{ backing_file_init(p.c_str(), 4096) };
+        ASSERT_NE(static_cast<int>(handle), -1);
+
+        const int flags = ::fcntl(static_cast<int>(handle), F_GETFD);
+        ASSERT_NE(flags, -1);
+        EXPECT_TRUE(flags & FD_CLOEXEC);
+    }
+
+    TEST_F(backing_file_init_test, FailsWhenParentDirectoryUnwritable) {
+        if (::getuid() == 0) {
+            GTEST_SKIP() << "Running as root; permission test not meaningful";
+        }
+
+        const std::string ro_dir = path("ro");
+        ASSERT_EQ(::mkdir(ro_dir.c_str(), 0555), EXIT_SUCCESS);
+
+        int raw_fd = backing_file_init((ro_dir + "/denied.img").c_str(), 4096);
+        EXPECT_EQ(raw_fd, -1);
+    }
+
+    TEST_F(backing_file_init_test, FailsWhenExistingFileIsUnreadable) {
+        if (::getuid() == 0) {
+            GTEST_SKIP() << "Running as root; permission test not meaningful";
+        }
+
+        const std::string p = path("noperm.img");
+        create_file_of_size(p, 4096);
+        ASSERT_EQ(::chmod(p.c_str(), 0000), EXIT_SUCCESS);
+
+        int raw_fd = backing_file_init(p.c_str(), 4096);
+        EXPECT_EQ(raw_fd, -1);
+
+        ::chmod(p.c_str(), 0644);
+    }
 } // namespace backing_file_testing
-
