@@ -19,19 +19,7 @@
 // Local Includes
 #include "rcloud/loop.h"
 
-int loop_device_init(const char* backing_path_p) {
-    // Ensure the pointer to the backing file path is not null
-    if (backing_path_p == nullptr) {
-        errno = EFAULT;
-        return -1;
-    }
-
-    // Open the backing file
-    const int backing_fd = open(backing_path_p, O_RDWR | O_CLOEXEC);
-    if (backing_fd == -1) {
-        return -1;
-    }
-
+int loop_device_init(const int backing_fd, char* loop_dev_path) {
     // Open the loop control device
     const int ctl_fd = open(LOOP_CTL_PATH, O_RDWR | O_CLOEXEC);
     if (ctl_fd == -1) {
@@ -65,11 +53,10 @@ int loop_device_init(const char* backing_path_p) {
     }
 
     // Construct the path to the loop device
-    char loop_path[LOOP_DEV_PATH_MAX];
-    snprintf(loop_path, LOOP_DEV_PATH_MAX, "/dev/loop%u", (unsigned int)loop_num);
+    snprintf(loop_dev_path, LOOP_DEV_PATH_MAX, "/dev/loop%u", (unsigned int)loop_num);
 
     // Open the loop device
-    const int loop_fd = open(loop_path, O_RDWR | O_CLOEXEC);
+    const int loop_fd = open(loop_dev_path, O_RDWR | O_CLOEXEC);
     if (loop_fd == -1) {
         // Give up ownership of the loop control device lock
         flock(ctl_fd, LOCK_UN);
@@ -168,43 +155,4 @@ int loop_device_open(const char* backing_path_p) {
     }
     closedir(dstream_p);
     return -1;
-}
-
-int loop_device_destroy(const int loop_fd) {
-    if (loop_fd < 0) {
-        errno = EBADFD;
-        return -1;
-    }
-
-    // Open the loop control device
-    const int ctl_fd = open(LOOP_CTL_PATH, O_RDWR | O_CLOEXEC);
-    if (ctl_fd == -1) {
-        close(loop_fd);
-        return -1;
-    }
-
-    // Get the loop device number
-    struct loop_info64 loop_info64;
-    if (loop_get_status64(loop_fd, &loop_info64) == -1) {
-        close(ctl_fd);
-        close(loop_fd);
-        return -1;
-    }
-
-    // Detach the loop device
-    if (loop_clr_fd(loop_fd) == -1) {
-        close(loop_fd);
-        return -1;
-    }
-
-    // Remove the loop device
-    if (loop_ctl_rm(ctl_fd, loop_info64.lo_number) == -1) {
-        close(ctl_fd);
-        close(loop_fd);
-        return -1;
-    }
-
-    close(ctl_fd);
-    close(loop_fd);
-    return EXIT_SUCCESS;
 }
