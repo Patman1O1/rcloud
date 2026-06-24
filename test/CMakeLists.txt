@@ -13,6 +13,31 @@ include(GoogleTest)
 enable_testing()
 
 #-----------------------------------------------------------------------------------------------------------------------
+# Target Name: rcloud_test_utils
+# Target Type: Interface Library
+#-----------------------------------------------------------------------------------------------------------------------
+# Define the target
+add_library(rcloud_test_utils INTERFACE)
+
+# Set properties
+set_target_properties(rcloud_test_utils PROPERTIES
+        OUTPUT_NAME rcloud-test-utils
+)
+
+# Include directories
+target_include_directories(rcloud_test_utils
+        INTERFACE
+            "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+
+# Publicly link with Google Test and Google Mock
+target_link_libraries(rcloud_test_utils
+        INTERFACE
+            GTest::gtest_main
+            GTest::gmock_main
+)
+
+#-----------------------------------------------------------------------------------------------------------------------
 # Target Name: fs_test
 # Target Type: Executable
 #-----------------------------------------------------------------------------------------------------------------------
@@ -42,8 +67,7 @@ target_sources(fs_test
 
 target_link_libraries(fs_test
         PRIVATE
-            GTest::gtest_main
-            GTest::gmock_main
+            rcloud_test_utils
 )
 gtest_discover_tests(fs_test)
 
@@ -78,8 +102,7 @@ target_sources(backing_file_test
 
 target_link_libraries(backing_file_test
         PRIVATE
-            GTest::gtest_main
-            GTest::gmock_main
+            rcloud_test_utils
 )
 gtest_discover_tests(backing_file_test)
 
@@ -115,8 +138,7 @@ target_sources(loop_test
 
 target_link_libraries(loop_test
         PRIVATE
-            GTest::gtest_main
-            GTest::gmock_main
+            rcloud_test_utils
 )
 gtest_discover_tests(loop_test)
 
@@ -153,7 +175,6 @@ target_sources(drive_test
 
 target_link_libraries(drive_test
         PRIVATE
-            GTest::gtest_main
-            GTest::gmock_main
+            rcloud_test_utils
 )
 gtest_discover_tests(drive_test)
