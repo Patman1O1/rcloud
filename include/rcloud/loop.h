@@ -77,15 +77,13 @@ static inline int loop_set_direct_io(const int loop_fd, const bool direct_io_fla
 static inline int loop_set_capacity(const int loop_fd) { return ioctl(loop_fd, LOOP_SET_CAPACITY, 0); }
 
 static inline ssize_t loop_block_size(const int loop_fd) {
-    ssize_t block_size;
+    int block_size;
     return ioctl(loop_fd, BLKSSZGET, &block_size) >= 0 ? block_size : -1;
 }
 
-extern int loop_device_init(const char* backing_path_p);
+extern int loop_device_init(int backing_fd, char* loop_dev_path);
 
 extern int loop_device_open(const char* backing_path_p);
-
-extern int loop_device_destroy(int loop_fd);
 
 #ifdef __cplusplus
 }
