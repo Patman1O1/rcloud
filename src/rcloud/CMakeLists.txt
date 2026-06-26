@@ -1,6 +1,7 @@
 #-----------------------------------------------------------------------------------------------------------------------
 # Target Name: rcloud_objects
 # Target Type: Object Library
+# Target Dependencies: libmount
 #-----------------------------------------------------------------------------------------------------------------------
 # Define the target
 add_library(rcloud_objects OBJECT)
@@ -17,10 +18,12 @@ target_include_directories(rcloud_objects
 # Set sources
 target_sources(rcloud_objects
         PRIVATE
-            "${CMAKE_SOURCE_DIR}/src/rcloud/backing_file.c"
-            "${CMAKE_SOURCE_DIR}/src/rcloud/loop.c"
-            "${CMAKE_SOURCE_DIR}/src/rcloud/fs.c"
             "${CMAKE_SOURCE_DIR}/src/rcloud/drive.c"
+)
+
+target_link_libraries(rcloud_objects
+        PUBLIC
+            libmount::libmount
 )
 
 #-----------------------------------------------------------------------------------------------------------------------
