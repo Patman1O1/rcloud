@@ -5,143 +5,422 @@
 // ISO Includes
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include <errno.h>
 
 // POSIX Includes
 #include <unistd.h>
+#include <fcntl.h>
 #include <pwd.h>
-#include <sys/mount.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
-// Local Includes
-#include "rcloud/fs.h"
-#include "rcloud/loop.h"
+// GNU Includes
+#include <linux/limits.h>
+
+// Third Party Includes
+#include <libmount/libmount.h>
+
 #include "rcloud/drive.h"
 
-// The maximum size the user's home path is allowed to be. This is calculated by using
-// the formula below. Note that NAME_MAX is a macro defined in "linux/limits.h" with a
-// value of 255. Let <padding> be the value 8.
-//
-// HOME_PATH_MAX = NAME_MAX + strlen("/home/") + strlen("rcloud.img") + <padding>
-static constexpr size_t HOME_PATH_MAX = 280;
+static constexpr char RCLOUD_FSTYPE[] = "ext4";
+static constexpr off_t RCLOUD_IMG_MB = 1074000000;
 
-// The maximum size of the path to the backing file can be. This is calculated by
-// using the formula below. Let <padding> be the value 1.
-//
-// BACKING_PATH_MAX = HOME_PATH_MAX + strlen(".local/share/rcloud/rcloud.img") + <padding>
-static constexpr size_t BACKING_PATH_MAX = 312;
+static int mkdirs(const char* path, const mode_t mode) {
+    if (path == nullptr || path[0] == '\0') {
+        errno = EINVAL;
+        return -1;
+    }
 
-// The maximum size the mount path can be. This is calculated by using the formula
-// below. Let <padding> be the value 2.
-//
-// MNT_PATH_MAX = HOME_PATH_MAX + strlen("rcloud") + <padding>
-static constexpr size_t MNT_PATH_MAX = 288;
+    char* path_cpy = strdup(path);
+    if (path_cpy == nullptr) {
+        return -1;
+    }
 
-// The initialize size of the backing file (1 GiB).
-static constexpr size_t BACKING_FILE_INIT_SIZE = 1074000000;
+    int ret = 0;
+    for (char* ch = path_cpy + 1; *ch != '\0'; ch++) {
+        if (*ch == '/') {
+            *ch = '\0';
+            if (mkdir(path_cpy, mode) < 0 && errno != EEXIST) {
+                ret = -1;
+                break;
+            }
+            *ch = '/';
+        }
+    }
+    if (ret == EXIT_SUCCESS && mkdir(path_cpy, mode) < 0 && errno != EEXIST) {
+        ret = -1;
+    }
 
-static int get_home_path(char* result_buf) {
+    free(path_cpy);
+    return ret;
+}
+
+static char* getdir(const char* path, char* dir_ret) {
+    const char* last_slash = strrchr(path, '/');
+    if (last_slash == nullptr) {
+        return nullptr; // Or handle as current directory "."
+    }
+    size_t len = last_slash - path;
+    strncpy(dir_ret, path, len);
+    dir_ret[len] = '\0';
+    return dir_ret;
+}
+
+static bool path_is_mountpoint(const char* path) {
+    struct libmnt_table* table = mnt_new_table_from_file("/proc/self/mountinfo");
+    if (table == nullptr) {
+        return false;
+    }
+
+    struct libmnt_cache* cache = mnt_new_cache();
+    if (cache != nullptr) {
+        mnt_table_set_cache(table, cache);
+    }
+
+    const struct libmnt_fs* fs = mnt_table_find_target(table, path, MNT_ITER_BACKWARD);
+
+    mnt_unref_cache(cache);
+    mnt_unref_table(table);
+
+    return fs != nullptr;
+}
+
+static int mkfs_ext4(const char* img_path) {
+    char* const argv[] = {"/sbin/mkfs.ext4", "-F", "-q", "--", (char*)img_path, nullptr};
+    constexpr char* const envp[] = { nullptr };
+
+    if (access("/sbin/mkfs.ext4", F_OK) == -1) {
+        errno = ENOENT;
+        return -1;
+    }
+
+    const pid_t pid = fork();
+    if (pid < 0) {
+        return -1;
+    }
+
+    if (pid == 0) {
+        execve("/sbin/mkfs.ext4", argv, envp);
+        _exit(127);
+    }
+
+    int status;
+    if (waitpid(pid, &status, 0) < 0) {
+        return -1;
+    }
+
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != EXIT_SUCCESS) {
+        errno = EIO;
+        return -1;
+    }
+    return EXIT_SUCCESS;
+}
+
+static char* get_xdg_data_home(void) {
+    // Allocate memory on the heap to store the path to XDG_DATA_HOME
+    auto path = (char*)malloc(PATH_MAX);
+    if (path == nullptr) {
+        return nullptr;
+    }
+
+    // First check the environment variable
+    const char* env = getenv("XDG_DATA_HOME");
+    if (env == nullptr) {
+        // Fall back to ~/.local/share
+        const ssize_t buf_size = sysconf(_SC_GETPW_R_SIZE_MAX);
+        const size_t pw_buf_size = buf_size == -1 ? 16384 : (size_t)buf_size;
+        const auto pw_buf = (char*)malloc(pw_buf_size);
+        if (pw_buf == nullptr) {
+            free(path);
+            return nullptr;
+        }
+        struct passwd pw;
+        struct passwd* result;
+        const int ret_val = getpwuid_r(getuid(), &pw, pw_buf, pw_buf_size, &result);
+        if (ret_val != EXIT_SUCCESS ||
+            result == nullptr ||
+            snprintf(path, PATH_MAX, "%s/.local/share", pw.pw_dir) >= PATH_MAX) {
+            free(pw_buf);
+            free(path);
+            return nullptr;
+        }
+        free(pw_buf);
+    } else if (strlcpy(path, env, PATH_MAX) >= PATH_MAX) {
+        free(path);
+        return nullptr;
+    }
+
+    // Free access heap memory
+    const size_t path_size = strnlen(path, PATH_MAX - 1) + 1;
+    const auto tmp = (char*)realloc(path, path_size);
+    if (tmp == nullptr) {
+        return path;
+    }
+    path = tmp;
+
+    // Ensure the path exists
+    if (mkdirs(path, 0700) == -1) {
+        free(path);
+        return nullptr;
+    }
+
+    return path;
+}
+
+static int create_image(const char* img_path) {
+    const int fd = open(img_path, O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC, 0644);
+    if (fd == -1) {
+        return -1;
+    }
+
+    if (fallocate(fd, 0, 0, RCLOUD_IMG_MB) == -1) {
+        const int errno_cpy = errno;
+        close(fd);
+        unlink(img_path);
+        errno = errno_cpy;
+        return -1;
+    }
+    close(fd);
+
+    if (mkfs_ext4(img_path) == -1) {
+        unlink(img_path);
+        return -1;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+static int add_to_fstab(const char* img_path, const char* mnt_path) {
+    struct libmnt_table* table = mnt_new_table();
+    if (table == nullptr) {
+        return -1;
+    }
+
+    // Load the current fstab
+    if (mnt_table_parse_fstab(table, "/etc/fstab") != EXIT_SUCCESS) {
+        mnt_unref_table(table);
+        return -1;
+    }
+
+    // Create a new entry object
+    struct libmnt_fs* fs = mnt_new_fs();
+    if (fs == nullptr) {
+        mnt_unref_table(table);
+        return -1;
+    }
+
+    // Set the filesystem attributes
+    mnt_fs_set_source(fs, img_path);
+    mnt_fs_set_target(fs, mnt_path);
+    mnt_fs_set_fstype(fs, RCLOUD_FSTYPE);
+    mnt_fs_set_options(fs, "loop,noauto,user,rw");
+    mnt_fs_set_passno(fs, 0);
+    mnt_fs_set_freq(fs, 0);
+
+    //  Add the entry to the table
+    if (mnt_table_add_fs(table, fs) != EXIT_SUCCESS) {
+        mnt_unref_fs(fs); // Only free if it was NOT added to the table
+        mnt_unref_table(table);
+        return -1;
+    }
+
+    // Save the table back to the fstab_path
+    if (mnt_table_replace_file(table, "/etc/fstab") != EXIT_SUCCESS) {
+        mnt_unref_table(table); // This frees the table AND the contained fs
+        return -1;
+    }
+
+    mnt_unref_table(table);
+    return EXIT_SUCCESS;
+}
+
+static int rm_from_fstab(const char* img_path) {
+    struct libmnt_table* table = mnt_new_table();
+
+    if (mnt_table_parse_fstab(table, "/etc/fstab") != EXIT_SUCCESS) {  // was nullptr
+        mnt_unref_table(table);
+        return -1;
+    }
+
+    struct libmnt_fs* fs = mnt_table_find_srcpath(table, img_path, MNT_ITER_BACKWARD);
+
+    if (fs != nullptr) {
+        mnt_table_remove_fs(table, fs);
+
+        if (mnt_table_replace_file(table, "/etc/fstab") != EXIT_SUCCESS) {
+            mnt_unref_table(table);
+            return -1;
+        }
+    }
+
+    mnt_unref_table(table);
+    return EXIT_SUCCESS;
+}
+
+char* rcloud_drive_img_path(void) {
+    // Allocate memory on the heap to store the image path
+    const auto img_path = (char*)malloc(PATH_MAX);
+    if (img_path == nullptr) {
+        return nullptr;
+    }
+
+    // Get the XDG_DATA_HOME path
+    char* xdg_data_home = get_xdg_data_home();
+    if (xdg_data_home == nullptr) {
+        free(img_path);
+        return nullptr;
+    }
+
+    // Build the directory path and ensure it exists
+    if (snprintf(img_path, PATH_MAX, "%s/rcloud", xdg_data_home) >= PATH_MAX ||
+        mkdirs(img_path, 0700) == -1) {
+        free(img_path);
+        free(xdg_data_home);
+        return nullptr;
+    }
+
+    // Build the full image path using xdg_data_home to avoid buffer overlap
+    if (snprintf(img_path, PATH_MAX, "%s/rcloud/rcloud.img", xdg_data_home) >= PATH_MAX) {
+        free(img_path);
+        free(xdg_data_home);
+        return nullptr;
+    }
+
+    free(xdg_data_home);
+
+    // Free access heap memory
+    const auto tmp = (char*)realloc(img_path, strnlen(img_path, PATH_MAX - 1) + 1);
+    return tmp != nullptr ? tmp : img_path;
+}
+
+char* rcloud_drive_mnt_path(void) {
+    // Allocate memory on the heap to store the mount path
+    const auto mnt_path = (char*)malloc(PATH_MAX);
+    if (mnt_path == nullptr) {
+        return nullptr;
+    }
+
+    // Get the user's home directory
+    const ssize_t buf_size = sysconf(_SC_GETPW_R_SIZE_MAX);
+    const size_t pw_buf_size = buf_size == -1 ? 16384 : (size_t)buf_size;
+    const auto pw_buf = (char*)malloc(pw_buf_size);
+    if (pw_buf == nullptr) {
+        return nullptr;
+    }
     struct passwd pw;
     struct passwd* result;
-
-    // Allocate temporary space for the database lookup
-    char buffer[1024];
-
-    if (getpwuid_r(getuid(), &pw, buffer, sizeof(buffer), &result) != 0 || result == nullptr) {
-        return -1;
+    const int ret_val = getpwuid_r(getuid(), &pw, pw_buf, pw_buf_size, &result);
+    if (ret_val != EXIT_SUCCESS ||
+        result == nullptr ||
+        snprintf(mnt_path, PATH_MAX, "%s/rcloud", pw.pw_dir) >= PATH_MAX) {
+        free(pw_buf);
+        free(mnt_path);
+        return nullptr;
     }
+    free(pw_buf);
 
-    // Ensure the result buffer is large enough to hold the user's home directory path
-    const size_t pw_dir_len = strlen(pw.pw_dir);
-    if (pw_dir_len + 1 > HOME_PATH_MAX) {
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-
-    // Copy the home directory into the result buffer
-    memcpy(result_buf, pw.pw_dir, pw_dir_len);
-    result_buf[pw_dir_len] = '\0';
-    return EXIT_SUCCESS;
+    // Free access heap memory
+    const auto tmp = (char*)realloc(mnt_path, strnlen(mnt_path, PATH_MAX - 1) + 1);
+    return tmp != nullptr ? tmp : mnt_path;
 }
 
-int create_drive(void) {
-    // Get the absolute path to the user's home directory
-    char home_path[HOME_PATH_MAX];
-    if (get_home_path(home_path) == -1) {
-        return -1;
+int rcloud_drive_create(const char* img_path, const char* mnt_path) {
+    struct stat st;
+    if (stat(img_path, &st) == -1) {
+        if (errno != ENOENT || create_image(img_path) == -1) {
+            return -1;
+        }
     }
 
-    // Construct the absolute path to the backing file
-    char backing_path[BACKING_PATH_MAX];
-    snprintf(backing_path, sizeof(backing_path), "%s/.local/share/rcloud/rcloud.img", home_path);
-
-    // Initialize the backing file
-    const int backing_fd = backing_file_init(backing_path, BACKING_FILE_INIT_SIZE);
-    if (backing_fd == -1) {
-        return -1;
+    bool mnt_dir_created = false;
+    if (stat(mnt_path, &st) == -1) {
+        if (errno != ENOENT || mkdir(mnt_path, 0700) < 0) {
+            return -1;
+        }
+        mnt_dir_created = true;
     }
 
-    // Initialize the loop device
-    char loop_dev_path[LOOP_DEV_PATH_MAX];
-    const int loop_fd = loop_device_init(backing_fd, loop_dev_path);
-    if (loop_fd == -1) {
-        backing_file_remove(backing_path);
-        return -1;
+    if (path_is_mountpoint(mnt_path)) {
+        return EXIT_SUCCESS;
     }
 
-    // Create the filesystem
-    if (mkfs_ext4(loop_dev_path) == -1) {
-        loop_clr_fd(loop_fd);
-        backing_file_remove(backing_path);
-        return -1;
+    int ret_val = -1;
+
+    struct libmnt_context* cxt = mnt_new_context();
+    if (cxt == nullptr) {
+        errno = ENOMEM;
+        goto ret;
     }
 
-    // Construct the absolute path to the mount point
-    char mnt_path[MNT_PATH_MAX];
-    snprintf(mnt_path, MNT_PATH_MAX, "%s/rcloud", backing_path);
+    if (add_to_fstab(img_path, mnt_path) != EXIT_SUCCESS) {
+        goto ret;
+    }
 
-    // Mount the drive
-    return mount(loop_dev_path, mnt_path, "ext4",
-        MS_NOATIME | MS_NOSUID | MS_NODEV, nullptr);
+    if (mnt_context_set_source(cxt, img_path) != EXIT_SUCCESS ||
+        mnt_context_set_target(cxt, mnt_path) != EXIT_SUCCESS ||
+        mnt_context_set_fstype(cxt, RCLOUD_FSTYPE) != EXIT_SUCCESS ||
+        mnt_context_set_user_mflags(cxt, MNT_MS_LOOP) != EXIT_SUCCESS) {
+        errno = EINVAL;
+        goto ret;
+    }
+
+    mnt_context_enable_loopdel(cxt, true);
+
+    {
+        int rc = mnt_context_mount(cxt);
+        if (rc != EXIT_SUCCESS) {
+            int sys_errno = mnt_context_get_syscall_errno(cxt);
+            char buf[256];
+            mnt_context_get_excode(cxt, rc, buf, sizeof(buf));
+            fprintf(stderr, "libmount error (rc=%d): %s\n", rc, buf);
+            if (sys_errno != 0) {
+                fprintf(stderr, "System error: %s\n", strerror(sys_errno));
+            }
+            errno = (sys_errno != 0) ? sys_errno : EIO;
+            goto ret;
+        }
+    }
+
+    ret_val = EXIT_SUCCESS;
+
+ret:
+    mnt_free_context(cxt);
+    if (ret_val != EXIT_SUCCESS && mnt_dir_created) {
+        rmdir(mnt_path);
+    }
+    return ret_val;
 }
 
-int destroy_drive(void) {
-    // Get the absolute path to the user's home directory
-    char home_path[HOME_PATH_MAX];
-    if (get_home_path(home_path) == -1) {
+int rcloud_drive_destroy(const char* img_path, const char* mnt_path) {
+    if (!path_is_mountpoint(mnt_path)) {
+        return unlink(img_path);
+    }
+
+    struct libmnt_context* cxt = mnt_new_context();
+    if (cxt == nullptr) {
+        errno = ENOMEM;
         return -1;
     }
 
-    // Construct the absolute path to the mount point
-    char mnt_path[MNT_PATH_MAX];
-    snprintf(mnt_path, MNT_PATH_MAX, "%s/rcloud", home_path);
+    int ret_val = -1;
 
-    // Unmount the loop device
-    if (umount2(mnt_path, 0) == -1) {
-        return -1;
+    mnt_context_set_target(cxt, mnt_path);
+    mnt_context_enable_loopdel(cxt, true);
+
+    if (mnt_context_umount(cxt) == EXIT_SUCCESS &&
+        rm_from_fstab(img_path) == EXIT_SUCCESS &&
+        unlink(img_path) == EXIT_SUCCESS) {
+        ret_val = EXIT_SUCCESS;
+    } else {
+        errno = mnt_context_get_syscall_errno(cxt);
+        if (errno == 0) {
+            errno = EIO;
+        }
     }
 
-    // Construct the absolute path to the backing file
-    char backing_path[BACKING_PATH_MAX];
-    snprintf(backing_path, BACKING_PATH_MAX, "%s/.local/share/rcloud/rcloud.img", backing_path);
-
-    // Open the backing file
-    const int backing_fd = open(backing_path, O_RDWR | O_CLOEXEC);
-    if (backing_fd == -1) {
-        return -1;
-    }
-
-    // Disassociate the loop device with its backing file
-    if (loop_clr_fd(backing_fd) == -1) {
-        close(backing_fd);
-        return -1;
-    }
-
-    // Remove the backing file
-    if (backing_file_remove(backing_path) == -1) {
-        close(backing_fd);
-        return -1;
-    }
-
-    return EXIT_SUCCESS;
+    mnt_free_context(cxt);
+    return ret_val;
 }
