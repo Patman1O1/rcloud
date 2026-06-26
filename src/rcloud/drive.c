@@ -58,17 +58,6 @@ static int mkdirs(const char* path, const mode_t mode) {
     return ret;
 }
 
-static char* getdir(const char* path, char* dir_ret) {
-    const char* last_slash = strrchr(path, '/');
-    if (last_slash == nullptr) {
-        return nullptr; // Or handle as current directory "."
-    }
-    size_t len = last_slash - path;
-    strncpy(dir_ret, path, len);
-    dir_ret[len] = '\0';
-    return dir_ret;
-}
-
 static bool path_is_mountpoint(const char* path) {
     struct libmnt_table* table = mnt_new_table_from_file("/proc/self/mountinfo");
     if (table == nullptr) {
