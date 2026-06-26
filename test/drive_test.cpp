@@ -1,17 +1,30 @@
-#include <gtest/gtest.h>
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif // #ifndef _GNU_SOURCE
 
-#include <cerrno>
-#include <cstdlib>
-#include <cstring>
+// ISO C++ Includes
 #include <string>
 
+// ISO C Includes
+#include <cstdlib>
+#include <cstring>
+#include <cerrno>
+
+// POSIX Includes
+#include <unistd.h>
 #include <fcntl.h>
 #include <pwd.h>
-#include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
+#include <sys/stat.h>
+
+// GNU Includes
 #include <linux/limits.h>
 
+// Google Test Includes
+#include <gtest/gtest.h>
+#include <gmock/gmock.h>
+
+// Local Includes
 #include "rcloud/drive.h"
 
 // ---------------------------------------------------------------------------
