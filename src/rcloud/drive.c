@@ -23,10 +23,17 @@
 // Third Party Includes
 #include <libmount/libmount.h>
 
+// Local Includes
 #include "rcloud/drive.h"
 
 static constexpr char RCLOUD_FSTYPE[] = "ext4";
 static constexpr off_t RCLOUD_IMG_MB = 1074000000;
+
+static int whoami(struct passwd* resultbuf, char* buffer, const size_t bufsize, struct passwd** res) {
+    const char *username = getenv("SUDO_USER");
+    return username != nullptr ? getpwnam_r(username, resultbuf, buffer, bufsize, res)
+                               : getpwuid_r(getuid(), resultbuf, buffer, bufsize, res);
+}
 
 static int mkdirs(const char* path, const mode_t mode) {
     if (path == nullptr || path[0] == '\0') {
@@ -128,7 +135,7 @@ static char* get_xdg_data_home(void) {
         }
         struct passwd pw;
         struct passwd* result;
-        const int ret_val = getpwuid_r(getuid(), &pw, pw_buf, pw_buf_size, &result);
+        const int ret_val = whoami(&pw, pw_buf, pw_buf_size, &result);
         if (ret_val != EXIT_SUCCESS ||
             result == nullptr ||
             snprintf(path, PATH_MAX, "%s/.local/share", pw.pw_dir) >= PATH_MAX) {
