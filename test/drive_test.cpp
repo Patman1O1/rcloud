@@ -50,20 +50,23 @@ namespace rcloud_drive_testing {
         char* real_home() noexcept {
             const ::ssize_t potential_size = ::sysconf(_SC_GETPW_R_SIZE_MAX);
             const std::size_t size = potential_size == -1 ? 16384 : static_cast<std::size_t>(potential_size);
-            char* const buf = static_cast<char*>(std::malloc(size));
+            auto const buf = static_cast<char*>(std::malloc(size));
             if (buf == nullptr) {
                 return nullptr;
             }
 
             struct ::passwd pw;
             struct ::passwd* result;
-            if (::getpwuid_r(::getuid(), &pw, buf, size, &result) != 0 || result == nullptr) {
+            const char* username = std::getenv("SUDO_USER");
+            const int ret_val = username != nullptr ? ::getpwnam_r(username, &pw, buf, size, &result)
+                                                    : ::getpwuid_r(::getuid(), &pw, buf, size, &result);
+            if (ret_val != EXIT_SUCCESS || result == nullptr) {
                 std::free(buf);
                 return nullptr;
             }
 
             // pw.pw_dir points into buf — copy it before freeing buf
-            char* const home = static_cast<char*>(std::malloc(std::strlen(pw.pw_dir) + 1));
+            auto const home = static_cast<char*>(std::malloc(std::strlen(pw.pw_dir) + 1));
             if (home != nullptr) {
                 std::strcpy(home, pw.pw_dir);
             }
