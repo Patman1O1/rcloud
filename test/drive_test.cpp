@@ -4,6 +4,7 @@
 
 // ISO C++ Includes
 #include <string>
+#include <filesystem>
 
 // ISO C Includes
 #include <cstdlib>
@@ -349,5 +350,8 @@ namespace rcloud_drive_testing {
         }
         std::fclose(f);
         EXPECT_FALSE(still_mounted);
+        EXPECT_FALSE(std::filesystem::exists(this->img_path_));
+        EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(this->img_path_).parent_path()));
+        EXPECT_FALSE(std::filesystem::exists(this->mnt_path_));
     }
 } // namespace rcloud_drive_testing
