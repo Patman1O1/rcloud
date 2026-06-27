@@ -18,6 +18,7 @@
 #include <sys/wait.h>
 
 // GNU Includes
+#include <libgen.h>
 #include <linux/limits.h>
 
 // Third Party Includes
@@ -185,6 +186,30 @@ static int create_image(const char* img_path) {
         return -1;
     }
 
+    return EXIT_SUCCESS;
+}
+
+static int destroy_image(const char* img_path) {
+    // Remove the image file itself
+    if (unlink(img_path) == -1) {
+        return -1;
+    }
+
+    // Create a copy of the path on the heap
+    char* img_path_cpy = strdup(img_path);
+    if (img_path_cpy == nullptr) {
+        return -1;
+    }
+
+    // Get the directory the image file resides in and remove it
+    const char* dir = dirname(img_path_cpy);
+    if (rmdir(dir) == -1) {
+        free(img_path_cpy);
+        return -1;
+    }
+
+    // Free the copy
+    free(img_path_cpy);
     return EXIT_SUCCESS;
 }
 
@@ -406,7 +431,8 @@ int rcloud_drive_destroy(const char* img_path, const char* mnt_path) {
 
     if (mnt_context_umount(cxt) == EXIT_SUCCESS &&
         rm_from_fstab(img_path) == EXIT_SUCCESS &&
-        unlink(img_path) == EXIT_SUCCESS) {
+        destroy_image(img_path) == EXIT_SUCCESS &&
+        rmdir(mnt_path) == EXIT_SUCCESS) {
         ret_val = EXIT_SUCCESS;
     } else {
         errno = mnt_context_get_syscall_errno(cxt);
