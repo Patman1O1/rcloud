@@ -25,7 +25,6 @@ class RcloudFile(ConanFile):
 
     def requirements(self) -> None:
         self.requires("libmount/2.40.2")
-        self.requires("apr-util/1.6.1")
 
     def build_requirements(self) -> None:
         self.tool_requires("cmake/[>=3.28.0]")
